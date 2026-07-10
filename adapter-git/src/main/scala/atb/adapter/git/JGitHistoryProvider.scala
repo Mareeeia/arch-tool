@@ -24,6 +24,14 @@ class JGitHistoryProvider[F[_]: Sync] extends VcsHistoryProvider[F]:
         emitted.onFinalizeWeak(Sync[F].blocking { git.close(); () })
     }
 
+  def headCommit(repo: AnalysisTarget): F[Option[String]] =
+    Sync[F].blocking:
+      openRepo(repo.repoRoot) match
+        case Left(_)     => None
+        case Right(git)  =>
+          try CommitWalker.headId(git)
+          finally git.close()
+
   private def openRepo(root: Path): Either[AtbError, Git] =
     try
       if !root.resolve(".git").toFile.exists() then Left(AtbError.NotAGitRepo(root.toString))

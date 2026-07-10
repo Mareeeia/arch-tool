@@ -23,7 +23,7 @@ class ArchUnitProviderSuite extends CatsEffectSuite:
         case Right(g)  =>
           IO {
             val names = g.classes.map(_.value).toVector.sorted.mkString(", ")
-            assert(names.contains("com.cycle.a.A"), clue(names))
+            assert(names.contains("com.a.A"), clue(names))
             assert(g.deps.nonEmpty, clue(g.deps))
           }
       }

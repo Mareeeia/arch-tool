@@ -9,7 +9,11 @@ import org.http4s.implicits.*
 /** Serves static web assets from classpath resources. */
 private[server] object StaticAssets:
 
-  private val AssetFiles = List("app.js", "style.css", "cytoscape.min.js", "cytoscape-fcose.min.js")
+  private val AssetFiles = List(
+    "app.js",
+    "style.css",
+    "cytoscape.min.js"
+  )
 
   def routes: HttpRoutes[IO] =
     val index = HttpRoutes.of[IO] { case GET -> Root =>

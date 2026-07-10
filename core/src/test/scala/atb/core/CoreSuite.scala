@@ -31,6 +31,25 @@ class RollupSuite extends munit.FunSuite:
     val view = Rollup.at(g, depth = 0)
     assert(view.nodes.forall(_.classCount == 1))
 
+  test("rollup preserves total class count across depths"):
+    val g = graph(
+      "com.a.X" -> "org.b.Y",
+      "com.a.Z" -> "org.c.W",
+      "org.b.Y" -> "org.c.W"
+    )
+    val expected = g.classes.size
+    List(0, 2, 3).foreach { depth =>
+      val view = Rollup.at(g, depth)
+      assertEquals(view.nodes.map(_.classCount).sum, expected, clue(s"depth=$depth"))
+      assertEquals(Rollup.totalWeight(view), g.deps.size, clue(s"depth=$depth"))
+    }
+
+  test("rollup at depth d refines depth d-1 node ids"):
+    val g = graph("com.a.X" -> "org.b.Y", "com.a.Z" -> "org.c.W")
+    val at1 = Rollup.at(g, depth = 1).nodes.map(_.id.value).toSet
+    val at2 = Rollup.at(g, depth = 2).nodes.map(_.id.value).toSet
+    assert(at2.forall(id => at1.exists(parent => id == parent || id.startsWith(s"$parent."))))
+
 class CyclesSuite extends munit.FunSuite:
 
   test("tarjan finds planted cycle"):
@@ -91,7 +110,17 @@ class BusFactorSuite extends munit.FunSuite:
     val bf = BusFactor.compute(changes, p => PathMapping.sourcePathToPackage(p))
     assert(bf.forall(_.busFactor >= 1))
 
-class PathMappingSuite extends munit.FunSuite:
+class PathMappingSuite extends ScalaCheckSuite:
+
+  private val segmentGen: Gen[String] =
+    Gen.alphaLowerStr.map(s => if s.isEmpty then "a" else s.take(8).capitalize)
+
+  private val pathGen: Gen[String] =
+    for
+      depth <- Gen.choose(1, 4)
+      segs  <- Gen.listOfN(depth, segmentGen)
+      cls   <- segmentGen
+    yield s"src/main/java/${segs.mkString("/")}/$cls.java"
 
   test("maps standard java source path to package"):
     val pkg = PathMapping.sourcePathToPackage("src/main/java/com/acme/billing/Invoice.java")
@@ -100,3 +129,14 @@ class PathMappingSuite extends munit.FunSuite:
   test("maps path to fqcn"):
     val fqcn = PathMapping.toFqcn("src/main/java/com/acme/billing/Invoice.java")
     assertEquals(fqcn, Fqcn.parse("com.acme.billing.Invoice"))
+
+  property("path mapping round-trips package and class name"):
+    forAll(pathGen) { path =>
+      val pkg  = PathMapping.sourcePathToPackage(path)
+      val fqcn = PathMapping.toFqcn(path)
+      (pkg, fqcn) match
+        case (Some(p), Some(f)) =>
+          f.packageName == p &&
+          f.value.endsWith(path.split("/").last.stripSuffix(".java"))
+        case _ => true
+    }

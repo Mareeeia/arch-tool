@@ -9,7 +9,7 @@ lazy val fs2Version        = "3.11.0"
 lazy val http4sVersion     = "0.23.30"
 lazy val circeVersion      = "0.14.10"
 lazy val declineVersion    = "2.5.0"
-lazy val archunitVersion   = "1.3.0"
+lazy val archunitVersion   = "1.4.2"
 lazy val jgitVersion       = "6.9.0.202403050737-r"
 lazy val log4catsVersion   = "2.7.0"
 lazy val munitVersion      = "1.0.4"
@@ -43,6 +43,7 @@ lazy val core = (project in file("core"))
 
 lazy val app = (project in file("app"))
   .dependsOn(core)
+  .dependsOn(fixtures % Test, adapterArchunit % Test, adapterGit % Test)
   .settings(commonSettings *)
   .settings(
     name := "atb-app",
@@ -80,6 +81,7 @@ lazy val adapterGit = (project in file("adapter-git"))
 
 lazy val server = (project in file("server"))
   .dependsOn(app, core)
+  .dependsOn(fixtures % Test, adapterArchunit % Test, adapterGit % Test)
   .settings(commonSettings *)
   .settings(
     name := "atb-server",
@@ -90,7 +92,8 @@ lazy val server = (project in file("server"))
       "org.http4s"       %% "http4s-circe"   % http4sVersion,
       "io.circe"         %% "circe-core"     % circeVersion,
       "io.circe"         %% "circe-generic"  % circeVersion,
-      "org.typelevel"    %% "munit-cats-effect" % "2.0.0" % Test
+      "org.typelevel"    %% "munit-cats-effect" % "2.0.0" % Test,
+      "io.circe"         %% "circe-parser"   % circeVersion % Test
     )
   )
 

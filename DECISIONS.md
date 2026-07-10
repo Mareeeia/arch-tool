@@ -14,4 +14,4 @@ Restructured modules to separate `model/`, `history/`, `view/`, `graph/`, `metri
 
 ## AD-004: Fixture javac targets Java 21 bytecode
 
-ArchUnit 1.3 cannot read Java 26 class files (major version 70). The fixture compiles with `-source 21 -target 21` so ArchUnit can import test classes. Logged because TASKS.md does not specify this constraint.
+The fixture compiles with `-source 21 -target 21` so tests stay compatible across JDK versions used in CI and locally. ArchUnit was upgraded to 1.4.2 for JDK 25+ runtime class import (1.3 could not read major version 69/70 from `jrt:/`).

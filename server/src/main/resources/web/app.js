@@ -1,5 +1,4 @@
 /** Architecture Toolbox interactive graph UI. */
-cytoscape.use(cytoscapeFcose);
 
 const state = {
   depth: 2,
@@ -65,10 +64,17 @@ function nodeSize(data) {
   return Math.max(24, Math.min(80, base * 4));
 }
 
+function elementData(element) {
+  return element.data ?? element;
+}
+
 function renderGraph(data) {
   const elements = [
-    ...data.nodes.map((n) => ({ group: "nodes", data: n.data, position: state.positions[n.data.id] })),
-    ...data.edges.map((e) => ({ group: "edges", data: e.data })),
+    ...data.nodes.map((n) => {
+      const nodeData = elementData(n);
+      return { group: "nodes", data: nodeData, position: state.positions[nodeData.id] };
+    }),
+    ...data.edges.map((e) => ({ group: "edges", data: elementData(e) })),
   ];
 
   if (state.cy) {
@@ -116,7 +122,7 @@ function renderGraph(data) {
         style: { "line-color": "#4cc9f0", width: 4 },
       },
     ],
-    layout: { name: "fcose", animate: true, randomize: false, quality: "default" },
+    layout: { name: "cose", animate: true, padding: 40, nodeRepulsion: 8000, idealEdgeLength: 100 },
   });
 
   state.cy.on("dragfree", "node", (evt) => {

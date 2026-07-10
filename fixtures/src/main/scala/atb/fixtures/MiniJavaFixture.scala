@@ -9,6 +9,11 @@ import scala.jdk.CollectionConverters.*
 /** Generates a synthetic Java+git fixture repo for integration tests. */
 object MiniJavaFixture:
 
+  val CoupledFiles: Vector[String] = Vector(
+    "src/main/java/com/util/X.java",
+    "src/main/java/com/util/Y.java"
+  )
+
   def create(): Path =
     val root = Files.createTempDirectory("atb-mini-java-")
     writeSources(root)
@@ -17,53 +22,38 @@ object MiniJavaFixture:
     root
 
   private def writeSources(root: Path): Unit =
-    val cycleA = root.resolve("src/main/java/com/cycle/a/A.java")
-    val cycleB = root.resolve("src/main/java/com/cycle/b/B.java")
-    val cycleC = root.resolve("src/main/java/com/cycle/c/C.java")
-    val utilX  = root.resolve("src/main/java/com/util/X.java")
-    val utilY  = root.resolve("src/main/java/com/util/Y.java")
-    List(cycleA, cycleB, cycleC, utilX, utilY).foreach { p =>
-      Files.createDirectories(p.getParent)
+    val sources = Vector(
+      ("com/a/A.java", "package com.a;\nimport com.b.B;\npublic class A { public B b = new B(); }"),
+      ("com/b/B.java", "package com.b;\nimport com.c.C;\npublic class B { public C c = new C(); }"),
+      ("com/c/C.java", "package com.c;\nimport com.a.A;\npublic class C { public A a = new A(); }"),
+      ("com/util/X.java", "package com.util;\npublic class X { public int value = 1; }"),
+      ("com/util/Y.java", "package com.util;\npublic class Y { public X x = new X(); }"),
+      (
+        "com/service/api/Client.java",
+        "package com.service.api;\nimport com.service.impl.Handler;\npublic class Client { public Handler h = new Handler(); }"
+      ),
+      (
+        "com/service/api/Gateway.java",
+        "package com.service.api;\npublic class Gateway { public Client client = new Client(); }"
+      ),
+      (
+        "com/service/impl/Handler.java",
+        "package com.service.impl;\nimport com.service.repo.Store;\npublic class Handler { public Store store = new Store(); }"
+      ),
+      (
+        "com/service/impl/Processor.java",
+        "package com.service.impl;\npublic class Processor { public Handler handler = new Handler(); }"
+      ),
+      (
+        "com/service/repo/Store.java",
+        "package com.service.repo;\npublic class Store { public String data = \"ok\"; }"
+      )
+    )
+    sources.foreach { case (rel, content) =>
+      val path = root.resolve(s"src/main/java/$rel")
+      Files.createDirectories(path.getParent)
+      Files.writeString(path, content)
     }
-
-    Files.writeString(
-      cycleA,
-      """
-        |package com.cycle.a;
-        |import com.cycle.b.B;
-        |public class A { public B b = new B(); }
-        |""".stripMargin
-    )
-    Files.writeString(
-      cycleB,
-      """
-        |package com.cycle.b;
-        |import com.cycle.c.C;
-        |public class B { public C c = new C(); }
-        |""".stripMargin
-    )
-    Files.writeString(
-      cycleC,
-      """
-        |package com.cycle.c;
-        |import com.cycle.a.A;
-        |public class C { public A a = new A(); }
-        |""".stripMargin
-    )
-    Files.writeString(
-      utilX,
-      """
-        |package com.util;
-        |public class X { public int value = 1; }
-        |""".stripMargin
-    )
-    Files.writeString(
-      utilY,
-      """
-        |package com.util;
-        |public class Y { public X x = new X(); }
-        |""".stripMargin
-    )
 
   private def compile(root: Path): Unit =
     val outDir = root.resolve("target/classes")
@@ -75,12 +65,10 @@ object MiniJavaFixture:
       .filter(p => p.toString.endsWith(".java"))
       .map(_.toString)
       .toArray
-    val cmd = ("javac" +: "-source" +: "21" +: "-target" +: "21" +: "-d" +: outDir.toString +: sources.toSeq).toSeq.asJava
-    val process = new ProcessBuilder(cmd)
-      .directory(root.toFile)
-      .redirectErrorStream(true)
-      .start()
-    val output = new String(process.getInputStream.readAllBytes())
+    val cmd =
+      ("javac" +: "-source" +: "21" +: "-target" +: "21" +: "-d" +: outDir.toString +: sources.toSeq).toSeq.asJava
+    val process = new ProcessBuilder(cmd).directory(root.toFile).redirectErrorStream(true).start()
+    val output  = new String(process.getInputStream.readAllBytes())
     if output.nonEmpty then println(output)
     val code = process.waitFor()
     if code != 0 then throw new RuntimeException(s"javac failed with exit code $code")
@@ -89,15 +77,18 @@ object MiniJavaFixture:
     val git = Git.init().setDirectory(root.toFile).call()
     try
       val authors = Vector("Alice", "Bob", "Carol")
-      val coupled = Vector("src/main/java/com/util/X.java", "src/main/java/com/util/Y.java")
       (1 to 20).foreach { i =>
         val author = authors(i % authors.size)
-        val file =
-          if i % 3 == 0 then coupled(i % coupled.size)
-          else s"src/main/java/com/cycle/a/A.java"
-        val path = root.resolve(file)
-        val content = Files.readString(path) + s"\n// commit $i\n"
-        Files.writeString(path, content)
+        if i % 3 == 0 then
+          CoupledFiles.foreach { rel =>
+            val path    = root.resolve(rel)
+            val content = Files.readString(path) + s"\n// commit $i\n"
+            Files.writeString(path, content)
+          }
+        else
+          val path    = root.resolve("src/main/java/com/a/A.java")
+          val content = Files.readString(path) + s"\n// commit $i\n"
+          Files.writeString(path, content)
         git.add().addFilepattern(".").call()
         git.commit()
           .setMessage(s"commit $i")
