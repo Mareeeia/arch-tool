@@ -1,0 +1,20 @@
+# sbt
+target/
+project/target/
+project/project/
+
+# Metals / Bloop
+.metals/
+.bloop/
+.bsp/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+
+# Coursier
+.cs/
