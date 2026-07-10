@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "scala",
+      "request": "launch",
+      "name": "Run atb export",
+      "mainClass": "atb.cli.Main",
+      "buildTarget": "cli",
+      "args": ["export", "${input:repoPath}", "--format", "json"],
+      "jvmOptions": [],
+      "env": {}
+    },
+    {
+      "type": "scala",
+      "request": "launch",
+      "name": "Run atb serve",
+      "mainClass": "atb.cli.Main",
+      "buildTarget": "cli",
+      "args": ["serve", "${input:repoPath}", "--no-open"],
+      "jvmOptions": [],
+      "env": {}
+    }
+  ],
+  "inputs": [
+    {
+      "id": "repoPath",
+      "type": "promptString",
+      "description": "Path to Java repository"
+    }
+  ]
+}

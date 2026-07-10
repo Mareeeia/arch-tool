@@ -6,12 +6,17 @@ project/project/
 # Metals / Bloop
 .metals/
 .bloop/
-.bsp/
+.bsp/*
+!.bsp/sbt.json
 
 # IDE
 .idea/
 *.iml
-.vscode/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
 
 # OS
 .DS_Store

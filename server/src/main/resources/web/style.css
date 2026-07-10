@@ -1,0 +1,108 @@
+:root {
+  --bg: #0f0f1a;
+  --panel: #1a1a2e;
+  --accent: #4cc9f0;
+  --text: #e8e8f0;
+  --muted: #8888aa;
+  --danger: #ff4466;
+  --warn: #ffb347;
+  --ok: #44dd88;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: "SF Pro Text", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.6rem 1rem;
+  background: var(--panel);
+  border-bottom: 1px solid #2a2a44;
+}
+
+header h1 { font-size: 1rem; font-weight: 600; color: var(--accent); white-space: nowrap; }
+
+.controls { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+
+.controls label, .controls input, .controls select {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.controls input[type="search"] {
+  background: var(--bg);
+  border: 1px solid #333355;
+  color: var(--text);
+  padding: 0.35rem 0.6rem;
+  border-radius: 4px;
+  width: 180px;
+}
+
+.controls select {
+  background: var(--bg);
+  border: 1px solid #333355;
+  color: var(--text);
+  padding: 0.35rem 0.6rem;
+  border-radius: 4px;
+}
+
+main { flex: 1; display: flex; min-height: 0; }
+
+#cy { flex: 1; background: radial-gradient(ellipse at center, #12122a 0%, var(--bg) 70%); }
+
+aside#panel {
+  width: 280px;
+  background: var(--panel);
+  border-left: 1px solid #2a2a44;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.8rem;
+}
+
+.tabs { display: flex; border-bottom: 1px solid #2a2a44; }
+
+.tabs button {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 0.5rem;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.tabs button.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
+
+.tab { display: none; overflow-y: auto; flex: 1; padding: 0.5rem; }
+.tab.active { display: block; }
+
+.tab table { width: 100%; border-collapse: collapse; }
+.tab td, .tab th { padding: 0.3rem 0.4rem; text-align: left; border-bottom: 1px solid #2a2a44; }
+.tab tr { cursor: pointer; }
+.tab tr:hover { background: #222240; }
+
+#tooltip {
+  display: none;
+  position: fixed;
+  background: #222240ee;
+  border: 1px solid #444466;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.78rem;
+  pointer-events: none;
+  z-index: 100;
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+.highlight { border-color: var(--accent) !important; box-shadow: 0 0 12px var(--accent); }

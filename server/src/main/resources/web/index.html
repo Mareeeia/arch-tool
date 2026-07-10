@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Architecture Toolbox</title>
+  <link rel="stylesheet" href="/style.css" />
+  <script src="/cytoscape.min.js"></script>
+  <script src="/cytoscape-fcose.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Architecture Toolbox</h1>
+    <div class="controls">
+      <label>Depth <input id="depth" type="range" min="1" max="6" value="2" /></label>
+      <input id="search" type="search" placeholder="Search nodes…" />
+      <select id="overlay">
+        <option value="none">Overlay: None</option>
+        <option value="hotspot">Hotspots</option>
+        <option value="busfactor">Bus factor</option>
+      </select>
+    </div>
+  </header>
+  <main>
+    <div id="cy"></div>
+    <aside id="panel">
+      <nav class="tabs">
+        <button data-tab="hotspots" class="active">Hotspots</button>
+        <button data-tab="coupling">Coupling</button>
+        <button data-tab="busfactor">Bus factor</button>
+      </nav>
+      <div id="tab-hotspots" class="tab active"></div>
+      <div id="tab-coupling" class="tab"></div>
+      <div id="tab-busfactor" class="tab"></div>
+    </aside>
+  </main>
+  <div id="tooltip"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
