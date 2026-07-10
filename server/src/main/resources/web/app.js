@@ -26,36 +26,46 @@ const cyStyles = [
   {
     selector: "node",
     style: {
+      shape: "ellipse",
       label: "data(label)",
       "text-valign": "center",
       "text-halign": "center",
       "font-size": 9,
-      color: "#fff",
-      "text-outline-width": 2,
-      "text-outline-color": "#000",
+      "font-family": "Segoe UI, system-ui, sans-serif",
+      color: "#ffffff",
+      "text-outline-width": 1.5,
+      "text-outline-color": "#1a1a1a",
+      "text-wrap": "wrap",
+      "text-max-width": 80,
       width: (ele) => nodeSize(ele.data()),
       height: (ele) => nodeSize(ele.data()),
       "background-color": (ele) => nodeColor(ele.data()),
+      "border-width": 1,
+      "border-color": "#1a1a1a",
     },
   },
   {
     selector: "node.highlight",
-    style: { "border-width": 3, "border-color": "#4cc9f0" },
+    style: {
+      "border-width": 2.5,
+      "border-color": "#2563eb",
+    },
   },
   {
     selector: "edge",
     style: {
-      width: (ele) => Math.log(ele.data("weight") + 1) * 2 + 1,
-      "line-color": (ele) => (ele.data("cyclic") ? "#ff4466" : "#666688"),
-      "target-arrow-color": (ele) => (ele.data("cyclic") ? "#ff4466" : "#666688"),
+      width: (ele) => Math.max(1, Math.log(ele.data("weight") + 1) * 1.2),
+      "line-color": (ele) => (ele.data("cyclic") ? "#dc2626" : "#374151"),
+      "target-arrow-color": (ele) => (ele.data("cyclic") ? "#dc2626" : "#374151"),
       "target-arrow-shape": "triangle",
+      "arrow-scale": 0.8,
       "curve-style": "bezier",
-      opacity: 0.85,
+      opacity: 0.9,
     },
   },
   {
     selector: "edge.highlight",
-    style: { "line-color": "#4cc9f0", width: 4 },
+    style: { "line-color": "#2563eb", width: 2.5 },
   },
 ];
 
@@ -98,18 +108,18 @@ async function loadGraph() {
 function nodeColor(data) {
   if (state.overlay === "hotspot" && data.hotspotScore != null) {
     const t = data.hotspotScore;
-    const r = Math.round(255 * t + 200 * (1 - t));
-    const g = Math.round(200 * (1 - t));
-    const b = Math.round(200 * (1 - t));
+    const r = Math.round(255 * t + 120 * (1 - t));
+    const g = Math.round(80 * (1 - t));
+    const b = Math.round(80 * (1 - t));
     return `rgb(${r},${g},${b})`;
   }
   if (state.overlay === "busfactor" && data.busFactor != null) {
-    if (data.busFactor >= 3) return "#44dd88";
-    if (data.busFactor === 2) return "#ffb347";
-    return "#ff4466";
+    if (data.busFactor >= 3) return "#059669";
+    if (data.busFactor === 2) return "#d97706";
+    return "#dc2626";
   }
   const hue = hashStr(data.id) % 360;
-  return `hsl(${hue}, 55%, 55%)`;
+  return `hsl(${hue}, 58%, 52%)`;
 }
 
 function hashStr(s) {
@@ -120,7 +130,7 @@ function hashStr(s) {
 
 function nodeSize(data) {
   const base = data.loc > 0 ? Math.sqrt(data.loc) : Math.sqrt(data.classCount || 1);
-  return Math.max(24, Math.min(80, base * 4));
+  return Math.max(28, Math.min(72, base * 4));
 }
 
 function elementData(element) {
@@ -254,7 +264,7 @@ function pathToNodeId(path) {
 function renderTable(containerId, rows, cols, nodeIdFn) {
   const el = document.getElementById(containerId);
   if (!rows.length) {
-    el.innerHTML = "<p style='color:#888;padding:0.5rem'>No data</p>";
+    el.innerHTML = "<p class='empty'>No data</p>";
     return;
   }
   el.innerHTML = `<table><thead><tr>${cols(rows[0]).map(() => "<th></th>").join("")}</tr></thead><tbody></tbody></table>`;
