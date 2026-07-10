@@ -43,6 +43,74 @@ class RoutesSuite extends CatsEffectSuite:
       }
     }.flatten
 
+  test("GET /api/graph scope restricts to package prefix"):
+    IO {
+      val root   = MiniJavaFixture.create()
+      val target = AnalysisTarget(root, Vector(root.resolve("target/classes")), None)
+      AnalysisService.make(ArchUnitProvider[IO], JGitHistoryProvider[IO]).flatMap { service =>
+        for
+          _        <- service.analyze(target, None)
+          routes    = Routes(service)
+          fullReq   = Request[IO](Method.GET, uri"/api/graph?depth=0")
+          scopedReq = Request[IO](Method.GET, uri"/api/graph?depth=0&scope=com.service")
+          fullBody <- routes.orNotFound.run(fullReq).flatMap(_.as[String])
+          scoped   <- routes.orNotFound.run(scopedReq).flatMap(_.as[String])
+        yield
+          def nodeIds(body: String): Vector[String] =
+            parse(body).toOption.toVector.flatMap { json =>
+              json.hcursor.downField("nodes").focus.toVector.flatMap(_.asArray.toVector.flatten)
+            }.flatMap(_.hcursor.get[String]("id").toOption)
+
+          val fullIds   = nodeIds(fullBody)
+          val scopedIds = nodeIds(scoped)
+          assert(scopedIds.nonEmpty)
+          assert(scopedIds.forall(id => id == "com.service" || id.startsWith("com.service.")))
+          assert(fullIds.size > scopedIds.size)
+      }
+    }.flatten
+
+  test("GET /api/graph group=package shows only package nodes"):
+    IO {
+      val root   = MiniJavaFixture.create()
+      val target = AnalysisTarget(root, Vector(root.resolve("target/classes")), None)
+      AnalysisService.make(ArchUnitProvider[IO], JGitHistoryProvider[IO]).flatMap { service =>
+        for
+          _       <- service.analyze(target, None)
+          routes   = Routes(service)
+          req      = Request[IO](Method.GET, uri"/api/graph?depth=2&group=package")
+          body    <- routes.orNotFound.run(req).flatMap(_.as[String])
+        yield
+          val nodes = parse(body).toOption.get.hcursor.downField("nodes").focus.get.asArray.get
+          assert(nodes.nonEmpty)
+          assert(nodes.forall(_.hcursor.get[String]("kind").toOption.contains("Package")))
+      }
+    }.flatten
+
+  test("GET /api/graph group=class allows mixed node kinds"):
+    IO {
+      val root   = MiniJavaFixture.create()
+      val target = AnalysisTarget(root, Vector(root.resolve("target/classes")), None)
+      AnalysisService.make(ArchUnitProvider[IO], JGitHistoryProvider[IO]).flatMap { service =>
+        for
+          _         <- service.analyze(target, None)
+          routes     = Routes(service)
+          pkgReq     = Request[IO](Method.GET, uri"/api/graph?depth=2&group=package")
+          classReq   = Request[IO](Method.GET, uri"/api/graph?depth=2&group=class")
+          pkgBody   <- routes.orNotFound.run(pkgReq).flatMap(_.as[String])
+          classBody <- routes.orNotFound.run(classReq).flatMap(_.as[String])
+        yield
+          def kinds(body: String): Vector[String] =
+            parse(body).toOption.get.hcursor.downField("nodes").focus.get.asArray.get
+              .flatMap(_.hcursor.get[String]("kind").toOption)
+
+          val pkgKinds   = kinds(pkgBody)
+          val classKinds = kinds(classBody)
+          assert(pkgKinds.forall(_ == "Package"))
+          assert(classKinds.contains("Package"))
+          assert(classKinds.contains("Class"))
+      }
+    }.flatten
+
   test("GET /api/metrics/coupling includes fixture pair"):
     IO {
       val root   = MiniJavaFixture.create()

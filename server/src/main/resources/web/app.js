@@ -2,14 +2,62 @@
 
 const state = {
   depth: 2,
+  scope: "",
+  group: "package",
   expanded: new Set(),
   overlay: "none",
   cy: null,
   positions: {},
+  graphRequest: 0,
 };
 
 const cyEl = document.getElementById("cy");
 const tooltip = document.getElementById("tooltip");
+
+const layoutOpts = {
+  name: "cose",
+  animate: true,
+  padding: 40,
+  nodeRepulsion: 8000,
+  idealEdgeLength: 100,
+};
+
+const cyStyles = [
+  {
+    selector: "node",
+    style: {
+      label: "data(label)",
+      "text-valign": "center",
+      "text-halign": "center",
+      "font-size": 9,
+      color: "#fff",
+      "text-outline-width": 2,
+      "text-outline-color": "#000",
+      width: (ele) => nodeSize(ele.data()),
+      height: (ele) => nodeSize(ele.data()),
+      "background-color": (ele) => nodeColor(ele.data()),
+    },
+  },
+  {
+    selector: "node.highlight",
+    style: { "border-width": 3, "border-color": "#4cc9f0" },
+  },
+  {
+    selector: "edge",
+    style: {
+      width: (ele) => Math.log(ele.data("weight") + 1) * 2 + 1,
+      "line-color": (ele) => (ele.data("cyclic") ? "#ff4466" : "#666688"),
+      "target-arrow-color": (ele) => (ele.data("cyclic") ? "#ff4466" : "#666688"),
+      "target-arrow-shape": "triangle",
+      "curve-style": "bezier",
+      opacity: 0.85,
+    },
+  },
+  {
+    selector: "edge.highlight",
+    style: { "line-color": "#4cc9f0", width: 4 },
+  },
+];
 
 async function api(path) {
   const res = await fetch(path);
@@ -30,9 +78,20 @@ function expandedParam() {
   return [...state.expanded].join(",");
 }
 
+let loadGraphTimer = null;
+function scheduleLoadGraph() {
+  clearTimeout(loadGraphTimer);
+  loadGraphTimer = setTimeout(() => {
+    loadGraph().catch((err) => console.error("Graph load failed:", err));
+  }, 200);
+}
+
 async function loadGraph() {
-  const url = `/api/graph?depth=${state.depth}&expanded=${expandedParam()}&overlay=${state.overlay}`;
+  const requestId = ++state.graphRequest;
+  const scopeParam = state.scope.trim() ? `&scope=${encodeURIComponent(state.scope.trim())}` : "";
+  const url = `/api/graph?depth=${state.depth}&expanded=${expandedParam()}&overlay=${state.overlay}&group=${encodeURIComponent(state.group)}${scopeParam}`;
   const data = await api(url);
+  if (requestId !== state.graphRequest) return;
   renderGraph(data);
 }
 
@@ -49,7 +108,7 @@ function nodeColor(data) {
     if (data.busFactor === 2) return "#ffb347";
     return "#ff4466";
   }
-  const hue = (hashStr(data.id) % 360);
+  const hue = hashStr(data.id) % 360;
   return `hsl(${hue}, 55%, 55%)`;
 }
 
@@ -68,66 +127,22 @@ function elementData(element) {
   return element.data ?? element;
 }
 
-function renderGraph(data) {
-  const elements = [
+function buildElements(data) {
+  return [
     ...data.nodes.map((n) => {
       const nodeData = elementData(n);
-      return { group: "nodes", data: nodeData, position: state.positions[nodeData.id] };
+      const element = { group: "nodes", data: nodeData };
+      const saved = state.positions[nodeData.id];
+      if (saved) element.position = saved;
+      return element;
     }),
     ...data.edges.map((e) => ({ group: "edges", data: elementData(e) })),
   ];
+}
 
-  if (state.cy) {
-    state.cy.destroy();
-  }
-
-  state.cy = cytoscape({
-    container: cyEl,
-    elements,
-    minZoom: 0.2,
-    maxZoom: 4,
-    style: [
-      {
-        selector: "node",
-        style: {
-          label: "data(label)",
-          "text-valign": "center",
-          "text-halign": "center",
-          "font-size": 9,
-          color: "#fff",
-          "text-outline-width": 2,
-          "text-outline-color": "#000",
-          width: (ele) => nodeSize(ele.data()),
-          height: (ele) => nodeSize(ele.data()),
-          "background-color": (ele) => nodeColor(ele.data()),
-        },
-      },
-      {
-        selector: "node.highlight",
-        style: { "border-width": 3, "border-color": "#4cc9f0" },
-      },
-      {
-        selector: "edge",
-        style: {
-          width: (ele) => Math.log(ele.data("weight") + 1) * 2 + 1,
-          "line-color": (ele) => (ele.data("cyclic") ? "#ff4466" : "#666688"),
-          "target-arrow-color": (ele) => (ele.data("cyclic") ? "#ff4466" : "#666688"),
-          "target-arrow-shape": "triangle",
-          "curve-style": "bezier",
-          opacity: 0.85,
-        },
-      },
-      {
-        selector: "edge.highlight",
-        style: { "line-color": "#4cc9f0", width: 4 },
-      },
-    ],
-    layout: { name: "cose", animate: true, padding: 40, nodeRepulsion: 8000, idealEdgeLength: 100 },
-  });
-
+function bindCyEvents() {
   state.cy.on("dragfree", "node", (evt) => {
-    const id = evt.target.id();
-    state.positions[id] = evt.target.position();
+    state.positions[evt.target.id()] = evt.target.position();
   });
 
   state.cy.on("mouseover", "node", (evt) => showTooltip(evt, evt.target.data()));
@@ -141,12 +156,43 @@ function renderGraph(data) {
     tooltip.textContent = `${evt.target.data("source")} → ${evt.target.data("target")}: ${w} class-level deps`;
   });
 
-  state.cy.on("dbltap", "node", async (evt) => {
+  state.cy.on("dbltap", "node", (evt) => {
     const id = evt.target.id();
     if (state.expanded.has(id)) state.expanded.delete(id);
     else state.expanded.add(id);
-    await loadGraph();
+    scheduleLoadGraph();
   });
+}
+
+function runLayout(animate = true) {
+  state.cy.stop();
+  state.cy
+    .layout({ ...layoutOpts, animate })
+    .run();
+}
+
+function renderGraph(data) {
+  const elements = buildElements(data);
+
+  if (!state.cy) {
+    state.cy = cytoscape({
+      container: cyEl,
+      elements,
+      minZoom: 0.2,
+      maxZoom: 4,
+      style: cyStyles,
+    });
+    bindCyEvents();
+    runLayout(true);
+    return;
+  }
+
+  state.cy.stop();
+  state.cy.batch(() => {
+    state.cy.elements().remove();
+    state.cy.add(elements);
+  });
+  runLayout(true);
 }
 
 function showTooltip(evt, d) {
@@ -167,6 +213,7 @@ function hideTooltip() {
 }
 
 function focusNode(id) {
+  if (!state.cy) return;
   const node = state.cy.getElementById(id);
   if (node.length) {
     state.cy.elements().removeClass("highlight");
@@ -224,17 +271,28 @@ function renderTable(containerId, rows, cols, nodeIdFn) {
   });
 }
 
-document.getElementById("depth").addEventListener("input", async (e) => {
+document.getElementById("depth").addEventListener("input", (e) => {
   state.depth = parseInt(e.target.value, 10);
-  await loadGraph();
+  scheduleLoadGraph();
 });
 
-document.getElementById("overlay").addEventListener("change", async (e) => {
+document.getElementById("overlay").addEventListener("change", (e) => {
   state.overlay = e.target.value;
-  await loadGraph();
+  scheduleLoadGraph();
+});
+
+document.getElementById("group").addEventListener("change", (e) => {
+  state.group = e.target.value;
+  scheduleLoadGraph();
+});
+
+document.getElementById("scope").addEventListener("input", (e) => {
+  state.scope = e.target.value;
+  scheduleLoadGraph();
 });
 
 document.getElementById("search").addEventListener("input", (e) => {
+  if (!state.cy) return;
   const q = e.target.value.toLowerCase();
   state.cy.elements().removeClass("highlight");
   if (!q) return;
@@ -253,7 +311,11 @@ document.querySelectorAll(".tabs button").forEach((btn) => {
 });
 
 (async () => {
-  await waitReady();
-  await loadGraph();
-  await loadMetrics();
+  try {
+    await waitReady();
+    await loadGraph();
+    await loadMetrics();
+  } catch (err) {
+    console.error("UI init failed:", err);
+  }
 })();

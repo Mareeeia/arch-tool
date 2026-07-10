@@ -1,12 +1,12 @@
 package atb.app
 
 import atb.core.AtbError
-import atb.core.graph.{PathMapping, Rollup}
+import atb.core.graph.{PathMapping, Rollup, GraphScope}
 import atb.core.history.ChangeSet
 import atb.core.metrics.*
 import atb.core.model.DependencyGraph
 import atb.core.ports.*
-import atb.core.view.{GraphView, NodeId}
+import atb.core.view.{GraphView, NodeId, ViewGranularity}
 import cats.effect.*
 import cats.effect.implicits.given
 import cats.syntax.all.*
@@ -17,7 +17,13 @@ import java.nio.file.{Files, Path}
 /** Public application service orchestrating analysis use cases. */
 trait AnalysisService[F[_]]:
   def analyze(target: AnalysisTarget, since: Option[java.time.Instant]): F[Either[AtbError, AnalysisResult]]
-  def view(depth: Int, expanded: Set[NodeId], overlay: OverlayKind): F[Option[GraphView]]
+  def view(
+      depth: Int,
+      expanded: Set[NodeId],
+      overlay: OverlayKind,
+      scope: Option[String],
+      group: ViewGranularity
+  ): F[Option[GraphView]]
   def hotspots: F[Vector[Hotspot]]
   def coupling: F[Vector[CouplingPair]]
   def busFactor: F[Vector[ComponentBusFactor]]
@@ -56,12 +62,21 @@ private final class LiveAnalysisService[F[_]: Async](
                           case None    => runAnalysis(target, since, head)
     yield result
 
-  def view(depth: Int, expanded: Set[NodeId], overlay: OverlayKind): F[Option[GraphView]] =
+  def view(
+      depth: Int,
+      expanded: Set[NodeId],
+      overlay: OverlayKind,
+      scope: Option[String],
+      group: ViewGranularity
+  ): F[Option[GraphView]] =
     cache.get.map(_.map { entry =>
-      val rolled = Rollup.view(entry.result.graph, depth, expanded)
+      val graph = scope match
+        case Some(prefix) => GraphScope(entry.result.graph, prefix)
+        case None         => entry.result.graph
+      val rolled = Rollup.view(graph, depth, expanded, group)
       Overlay.apply(
         rolled,
-        MetricsBundle(entry.result.hotspots, entry.result.busFactor, entry.result.graph.meta),
+        MetricsBundle(entry.result.hotspots, entry.result.busFactor, graph.meta),
         overlay
       )
     })

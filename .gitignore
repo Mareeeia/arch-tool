@@ -23,3 +23,6 @@ project/project/
 
 # Coursier
 .cs/
+
+# UI debug tooling
+scripts/node_modules/

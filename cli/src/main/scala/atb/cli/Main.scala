@@ -1,6 +1,7 @@
 package atb.cli
 
 import atb.core.metrics.OverlayKind
+import atb.core.view.ViewGranularity
 import atb.server.JsonCodecs
 import cats.effect.*
 import cats.syntax.all.*
@@ -46,7 +47,7 @@ object Main extends CommandIOApp(name = "atb", header = "Architecture Toolbox"):
         code   <- result match
                     case Left(err) => IO.println(Exporter.formatError(err)).as(ExitCode.Error)
                     case Right(_)  =>
-                      service.view(2, Set.empty, OverlayKind.None).flatMap {
+                      service.view(2, Set.empty, OverlayKind.None, None, ViewGranularity.Package).flatMap {
                         case None    => IO.println("No analysis result").as(ExitCode.Error)
                         case Some(v) =>
                           val graph = JsonCodecs.cytoscapeGraph(v)

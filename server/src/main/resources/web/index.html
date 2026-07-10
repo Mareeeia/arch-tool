@@ -12,7 +12,12 @@
     <h1>Architecture Toolbox</h1>
     <div class="controls">
       <label>Depth <input id="depth" type="range" min="1" max="6" value="2" /></label>
+      <input id="scope" type="text" placeholder="Scope (e.g. org.springframework.core)" />
       <input id="search" type="search" placeholder="Search nodes…" />
+      <select id="group">
+        <option value="package">Group: Package</option>
+        <option value="class">Group: Class</option>
+      </select>
       <select id="overlay">
         <option value="none">Overlay: None</option>
         <option value="hotspot">Hotspots</option>

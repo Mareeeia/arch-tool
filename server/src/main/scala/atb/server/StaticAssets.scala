@@ -19,8 +19,11 @@ private[server] object StaticAssets:
     val index = HttpRoutes.of[IO] { case GET -> Root =>
       StaticFile.fromResource[IO]("/web/index.html", None).getOrElseF(NotFound())
     }
+    val favicon = HttpRoutes.of[IO] { case GET -> Root / "favicon.ico" =>
+      NoContent()
+    }
     val assets = HttpRoutes.of[IO] {
       case req @ GET -> Root / file if AssetFiles.contains(file) =>
         StaticFile.fromResource[IO](s"/web/$file", Some(req)).getOrElseF(NotFound())
     }
-    index <+> assets
+    index <+> favicon <+> assets

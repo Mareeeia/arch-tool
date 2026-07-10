@@ -6,17 +6,21 @@ import atb.core.view.*
 /** Rolls up class-level graphs to package views at configurable depth. */
 object Rollup:
 
-  /** Roll up all classes to the given package depth (0 = class level). */
-  def at(graph: DependencyGraph, depth: Int): GraphView =
-    view(graph, depth, Set.empty)
+  /** Roll up all classes to the given package depth (0 = class level in class mode). */
+  def at(graph: DependencyGraph, depth: Int, granularity: ViewGranularity = ViewGranularity.Class): GraphView =
+    view(graph, depth, Set.empty, granularity)
 
   /** Roll up with mixed expansion for specific package nodes. */
   def view(
       graph: DependencyGraph,
       defaultDepth: Int,
-      expanded: Set[NodeId]
+      expanded: Set[NodeId],
+      granularity: ViewGranularity = ViewGranularity.Class
   ): GraphView =
-    val nodeForClass = (fqcn: Fqcn) => nodeIdFor(fqcn, defaultDepth, expanded)
+    val nodeForClass = granularity match
+      case ViewGranularity.Package => (fqcn: Fqcn) => packageOnlyNodeId(fqcn, defaultDepth)
+      case ViewGranularity.Class   => (fqcn: Fqcn) => nodeIdFor(fqcn, defaultDepth, expanded)
+
     val classLocs    = graph.meta.view.mapValues(_.loc.getOrElse(0)).toMap
     val classesByNode = graph.classes.groupBy(nodeForClass)
     val nodeClassCounts = classesByNode.view.mapValues(_.size).toMap
@@ -41,7 +45,7 @@ object Rollup:
       ViewNode(
         id = id,
         label = id.value,
-        kind = if count == 1 then NodeKind.Class else NodeKind.Package,
+        kind = nodeKind(granularity, count),
         classCount = count,
         loc = nodeLocs.getOrElse(id, 0),
         inDegree = inDeg.getOrElse(id, 0),
@@ -62,6 +66,21 @@ object Rollup:
 
   /** Total edge weight sum — preserved by rollup. */
   def totalWeight(view: GraphView): Int = view.edges.map(_.weight).sum
+
+  private def nodeKind(granularity: ViewGranularity, classCount: Int): NodeKind =
+    granularity match
+      case ViewGranularity.Package => NodeKind.Package
+      case ViewGranularity.Class   => if classCount == 1 then NodeKind.Class else NodeKind.Package
+
+  /** Package-only rollup: always map a class to its parent package at `depth`. */
+  private def packageOnlyNodeId(fqcn: Fqcn, depth: Int): NodeId =
+    val parts = fqcn.segments
+    if parts.length <= 1 then NodeId(parts.mkString("."))
+    else
+      val pkgDepth =
+        if depth <= 0 then parts.length - 1
+        else math.min(depth, parts.length - 1)
+      NodeId(parts.take(pkgDepth).mkString("."))
 
   private def nodeIdFor(fqcn: Fqcn, depth: Int, expanded: Set[NodeId]): NodeId =
     val parts = fqcn.segments

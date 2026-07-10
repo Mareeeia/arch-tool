@@ -1,11 +1,17 @@
 package atb.server
 
 import atb.core.metrics.OverlayKind
-import atb.core.view.NodeId
+import atb.core.view.{NodeId, ViewGranularity}
 import org.http4s.Request
 
 /** Parsed and validated graph query parameters. */
-final case class GraphQuery(depth: Int, expanded: Set[NodeId], overlay: OverlayKind)
+final case class GraphQuery(
+    depth: Int,
+    expanded: Set[NodeId],
+    overlay: OverlayKind,
+    scope: Option[String],
+    group: ViewGranularity
+)
 
 /** Query parameter extractors for API routes. */
 private[server] object QueryParams:
@@ -20,6 +26,9 @@ private[server] object QueryParams:
         case Some("hotspot")   => OverlayKind.Hotspot
         case Some("busfactor") => OverlayKind.BusFactor
         case _                 => OverlayKind.None
+      ,
+      scope = req.params.get("scope").map(_.trim).filter(_.nonEmpty),
+      group = req.params.get("group").flatMap(ViewGranularity.parse).getOrElse(ViewGranularity.Package)
     )
 
   def limit(req: Request[cats.effect.IO], default: Int = 50): Int =

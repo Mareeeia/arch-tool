@@ -26,7 +26,7 @@ object Routes:
 
       case req @ GET -> Root / "api" / "graph" =>
         val q = QueryParams.graphQuery(req)
-        service.view(q.depth, q.expanded, q.overlay).flatMap {
+        service.view(q.depth, q.expanded, q.overlay, q.scope, q.group).flatMap {
           case None       => NotFound("Analysis not ready")
           case Some(view) => Ok(JsonCodecs.cytoscapeGraph(view).asJson)
         }

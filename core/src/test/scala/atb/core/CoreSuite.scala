@@ -1,6 +1,6 @@
 package atb.core
 
-import atb.core.graph.{Cycles, PathMapping, Rollup}
+import atb.core.graph.{Cycles, GraphScope, PathMapping, Rollup}
 import atb.core.history.{ChangeSet, FileChange}
 import atb.core.metrics.{BusFactor, Coupling, CouplingConfig, Hotspots}
 import atb.core.model.*
@@ -49,6 +49,58 @@ class RollupSuite extends munit.FunSuite:
     val at1 = Rollup.at(g, depth = 1).nodes.map(_.id.value).toSet
     val at2 = Rollup.at(g, depth = 2).nodes.map(_.id.value).toSet
     assert(at2.forall(id => at1.exists(parent => id == parent || id.startsWith(s"$parent."))))
+
+  test("package group shows only package nodes at depth"):
+    val g = graph("com.a.X" -> "com.a.Y", "com.a.X" -> "com.b.Z")
+    val view = Rollup.view(g, defaultDepth = 2, expanded = Set.empty, ViewGranularity.Package)
+    assert(view.nodes.forall(_.kind == NodeKind.Package))
+    assertEquals(view.nodes.map(_.id.value).toSet, Set("com.a", "com.b"))
+
+  test("class group allows both package and class nodes"):
+    val g = graph("com.a.X" -> "com.a.Y", "com.a.X" -> "com.b.Z")
+    val view = Rollup.view(g, defaultDepth = 2, expanded = Set.empty, ViewGranularity.Class)
+    assert(view.nodes.exists(_.kind == NodeKind.Package))
+    assert(view.nodes.exists(_.kind == NodeKind.Class))
+    assertEquals(view.nodes.find(_.id.value == "com.a").map(_.kind), Some(NodeKind.Package))
+    assertEquals(view.nodes.find(_.id.value == "com.b").map(_.kind), Some(NodeKind.Class))
+
+class GraphScopeSuite extends munit.FunSuite:
+
+  private def graph(deps: (String, String)*): DependencyGraph =
+    val fqcnDeps = deps.flatMap { case (f, t) =>
+      for
+        from <- Fqcn.parse(f)
+        to   <- Fqcn.parse(t)
+      yield ClassDep(from, to, DepKind.Reference)
+    }.toVector
+    val classes = deps.flatMap { case (f, t) => List(Fqcn.parse(f), Fqcn.parse(t)).flatten }.toSet
+    DependencyGraph(classes, fqcnDeps, Map.empty)
+
+  test("scope org.springframework.core keeps only core subtree"):
+    val g = graph(
+      "org.springframework.core.io.Resource"            -> "org.springframework.core.io.AbstractResource",
+      "org.springframework.core.io.Resource"            -> "org.springframework.util.StringUtils",
+      "org.springframework.web.servlet.DispatcherServlet" -> "org.springframework.core.io.Resource"
+    )
+    val scoped = GraphScope(g, "org.springframework.core")
+    assertEquals(
+      scoped.classes.map(_.value).toSet,
+      Set(
+        "org.springframework.core.io.Resource",
+        "org.springframework.core.io.AbstractResource"
+      )
+    )
+    assertEquals(scoped.deps.size, 1)
+    assertEquals(scoped.deps.head.from.value, "org.springframework.core.io.Resource")
+
+  test("scoped rollup exposes only nodes under prefix"):
+    val g = graph(
+      "org.springframework.core.A" -> "org.springframework.core.B",
+      "org.springframework.core.B" -> "org.springframework.web.C"
+    )
+    val view = Rollup.at(GraphScope(g, "org.springframework.core"), depth = 0)
+    assert(view.nodes.forall(n => n.id.value.startsWith("org.springframework.core.")))
+    assertEquals(view.nodes.size, 2)
 
 class CyclesSuite extends munit.FunSuite:
 
