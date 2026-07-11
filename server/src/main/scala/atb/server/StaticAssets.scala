@@ -13,7 +13,8 @@ private[server] object StaticAssets:
   private val AssetFiles = List(
     "app.js",
     "style.css",
-    "cytoscape.min.js"
+    "cytoscape.min.js",
+    "chroma.min.js"
   )
 
   // Force revalidation on every load so UI changes show up on plain reload.

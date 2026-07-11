@@ -9,6 +9,7 @@ enum NodeKind:
 
 /** Metrics attached to a view node for overlay coloring. */
 final case class NodeMetrics(
+    instability: Option[Double],
     hotspotScore: Option[Double],
     busFactor: Option[Int],
     churn: Option[Int],
@@ -16,7 +17,7 @@ final case class NodeMetrics(
 )
 
 object NodeMetrics:
-  val Empty: NodeMetrics = NodeMetrics(None, None, None, None)
+  val Empty: NodeMetrics = NodeMetrics(None, None, None, None, None)
 
 /** A node in the rolled-up graph served to the UI. */
 final case class ViewNode(

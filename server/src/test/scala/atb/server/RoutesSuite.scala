@@ -39,6 +39,13 @@ class RoutesSuite extends CatsEffectSuite:
           val json = parse(body).toOption.get
           assert(json.hcursor.downField("cycles").focus.exists(_.asArray.exists(_.nonEmpty)))
           assert(json.hcursor.downField("nodes").focus.exists(_.asArray.exists(_.nonEmpty)))
+          assert(
+            json.hcursor.downField("nodes").focus.toVector.flatMap(_.asArray.toVector.flatten).exists { node =>
+              node.hcursor.get[Double]("instability").toOption.isDefined ||
+                (node.hcursor.get[Int]("inDegree").toOption.contains(0) &&
+                  node.hcursor.get[Int]("outDegree").toOption.contains(0))
+            }
+          )
           assertEquals(sorted(parse(body).toOption.get), sorted(parse(again).toOption.get))
       }
     }.flatten

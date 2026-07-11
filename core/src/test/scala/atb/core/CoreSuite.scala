@@ -2,7 +2,7 @@ package atb.core
 
 import atb.core.graph.{Cycles, GraphScope, PathMapping, Rollup}
 import atb.core.history.{ChangeSet, FileChange}
-import atb.core.metrics.{BusFactor, Coupling, CouplingConfig, Hotspots}
+import atb.core.metrics.{BusFactor, Coupling, CouplingConfig, Hotspots, Stability}
 import atb.core.model.*
 import atb.core.view.*
 import munit.ScalaCheckSuite
@@ -137,6 +137,32 @@ class GraphScopeSuite extends munit.FunSuite:
         "org.springframework.util"
       )
     )
+
+class StabilitySuite extends munit.FunSuite:
+
+  private def graph(deps: (String, String)*): DependencyGraph =
+    val fqcnDeps = deps.flatMap { case (f, t) =>
+      for
+        from <- Fqcn.parse(f)
+        to   <- Fqcn.parse(t)
+      yield ClassDep(from, to, DepKind.Reference)
+    }.toVector
+    val classes = deps.flatMap { case (f, t) => List(Fqcn.parse(f), Fqcn.parse(t)).flatten }.toSet
+    DependencyGraph(classes, fqcnDeps, Map.empty)
+
+  test("instability is outgoing share of total degree"):
+    assertEquals(Stability.instability(3, 0), Some(0.0))
+    assertEquals(Stability.instability(0, 2), Some(1.0))
+    assertEquals(Stability.instability(3, 1), Some(0.25))
+    assertEquals(Stability.instability(0, 0), None)
+
+  test("enrich attaches instability to rolled-up nodes"):
+    val g = graph("com.a.X" -> "com.b.Y", "com.c.Z" -> "com.b.Y")
+    val view = Stability.enrich(Rollup.at(g, depth = 2))
+    val byId = view.nodes.map(n => n.id.value -> n.metrics.instability).toMap
+    assertEquals(byId("com.b"), Some(0.0))
+    assertEquals(byId("com.a"), Some(1.0))
+    assertEquals(byId("com.c"), Some(1.0))
 
 class CyclesSuite extends munit.FunSuite:
 

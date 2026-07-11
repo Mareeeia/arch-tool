@@ -82,7 +82,7 @@ private final class LiveAnalysisService[F[_]: Async](
       val graph = scope match
         case Some(prefix) => GraphScope(entry.result.graph, prefix)
         case None         => entry.result.graph
-      val rolled = Rollup.view(graph, depth, expanded, group)
+      val rolled = Stability.enrich(Rollup.view(graph, depth, expanded, group))
       Overlay.apply(
         rolled,
         MetricsBundle(entry.result.hotspots, entry.result.busFactor, graph.meta),
@@ -114,7 +114,7 @@ private final class LiveAnalysisService[F[_]: Async](
       val graph = scope match
         case Some(prefix) => GraphScope(entry.result.graph, prefix)
         case None         => entry.result.graph
-      val children = Rollup.subnodes(graph, nodeId, depth, group, expanded)
+      val children = Stability.enrich(Rollup.subnodes(graph, nodeId, depth, group, expanded))
       Overlay.apply(
         children,
         MetricsBundle(entry.result.hotspots, entry.result.busFactor, graph.meta),

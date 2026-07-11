@@ -45,6 +45,7 @@ object JsonCodecs:
           "loc"          -> n.loc.asJson,
           "inDegree"     -> n.inDegree.asJson,
           "outDegree"    -> n.outDegree.asJson,
+          "instability"  -> n.metrics.instability.asJson,
           "hotspotScore" -> n.metrics.hotspotScore.asJson,
           "busFactor"    -> n.metrics.busFactor.asJson,
           "churn"        -> n.metrics.churn.asJson,

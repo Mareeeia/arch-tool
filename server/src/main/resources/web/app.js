@@ -168,6 +168,13 @@ function hideNode(nodeId) {
   showGraph();
 }
 
+const instabilityScale = chroma.scale("RdYlGn").domain([1, 0]);
+
+function stabilityColor(instability) {
+  if (instability == null) return "#94a3b8";
+  return instabilityScale(Math.max(0, Math.min(1, instability))).hex();
+}
+
 function nodeColor(data) {
   if (state.overlay === "hotspot" && data.hotspotScore != null) {
     const t = data.hotspotScore;
@@ -181,14 +188,7 @@ function nodeColor(data) {
     if (data.busFactor === 2) return "#d97706";
     return "#dc2626";
   }
-  const hue = hashStr(data.id) % 360;
-  return `hsl(${hue}, 58%, 52%)`;
-}
-
-function hashStr(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
+  return stabilityColor(data.instability ?? null);
 }
 
 function nodeSize(data) {
@@ -409,6 +409,7 @@ function showTooltip(evt, d) {
     <strong>${d.label}</strong><br/>
     Classes: ${d.classCount} · LOC: ${d.loc}<br/>
     In: ${d.inDegree} · Out: ${d.outDegree}<br/>
+    ${d.instability != null ? `Instability: ${d.instability.toFixed(2)}<br/>` : "No dependencies<br/>"}
     ${d.hotspotScore != null ? `Hotspot: ${d.hotspotScore.toFixed(2)}<br/>` : ""}
     ${d.busFactor != null ? `Bus factor: ${d.busFactor}` : ""}
   `;
