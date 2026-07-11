@@ -28,14 +28,21 @@
       </select>
     </div>
   </header>
-  <main>
-    <div id="cy"></div>
+  <main id="workspace">
+    <div id="graph-area">
+      <div id="cy"></div>
+      <button id="panel-open" type="button" class="panel-fab" hidden aria-label="Open metrics panel">◀ Metrics</button>
+    </div>
+    <div id="panel-resizer" role="separator" aria-orientation="vertical" aria-label="Resize metrics panel"></div>
     <aside id="panel">
-      <nav class="tabs">
-        <button data-tab="hotspots" class="active">Hotspots</button>
-        <button data-tab="coupling">Coupling</button>
-        <button data-tab="busfactor">Bus factor</button>
-      </nav>
+      <div class="panel-toolbar">
+        <nav class="tabs">
+          <button data-tab="hotspots" class="active">Hotspots</button>
+          <button data-tab="coupling">Coupling</button>
+          <button data-tab="busfactor">Bus factor</button>
+        </nav>
+        <button id="panel-close" type="button" class="panel-toggle" aria-label="Collapse metrics panel" title="Collapse panel">›</button>
+      </div>
       <div id="tab-hotspots" class="tab active"></div>
       <div id="tab-coupling" class="tab"></div>
       <div id="tab-busfactor" class="tab"></div>

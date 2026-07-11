@@ -526,9 +526,68 @@ document.querySelectorAll(".tabs button").forEach((btn) => {
   });
 });
 
+const PANEL_MIN = 200;
+const PANEL_MAX = 560;
+const workspace = document.getElementById("workspace");
+const panelResizer = document.getElementById("panel-resizer");
+const panelOpen = document.getElementById("panel-open");
+const panelClose = document.getElementById("panel-close");
+
+function resizeCy() {
+  if (state.cy) state.cy.resize();
+}
+
+function panelWidthPx() {
+  return parseInt(getComputedStyle(workspace).getPropertyValue("--panel-width"), 10) || 280;
+}
+
+function setPanelWidth(width) {
+  const w = Math.max(PANEL_MIN, Math.min(PANEL_MAX, width));
+  workspace.style.setProperty("--panel-width", `${w}px`);
+  resizeCy();
+}
+
+function setPanelCollapsed(collapsed) {
+  workspace.classList.toggle("panel-collapsed", collapsed);
+  panelOpen.hidden = !collapsed;
+  resizeCy();
+}
+
+function bindPanelControls() {
+  panelClose.addEventListener("click", () => setPanelCollapsed(true));
+  panelOpen.addEventListener("click", () => setPanelCollapsed(false));
+
+  panelResizer.addEventListener("mousedown", (e) => {
+    if (workspace.classList.contains("panel-collapsed")) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = panelWidthPx();
+    panelResizer.classList.add("dragging");
+    document.body.classList.add("panel-resizing");
+
+    function onMove(ev) {
+      setPanelWidth(startW + (startX - ev.clientX));
+    }
+
+    function onUp() {
+      panelResizer.classList.remove("dragging");
+      document.body.classList.remove("panel-resizing");
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      resizeCy();
+    }
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
+
+  window.addEventListener("resize", () => resizeCy());
+}
+
 (async () => {
   try {
     bindKeyboard();
+    bindPanelControls();
     await waitReady();
     await loadScopes();
     await loadGraph();
