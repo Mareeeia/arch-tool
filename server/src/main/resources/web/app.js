@@ -5,6 +5,7 @@ const state = {
   scope: "",
   group: "package",
   expanded: new Set(),
+  hidden: new Set(),
   overlay: "none",
   cy: null,
   positions: {},
@@ -14,6 +15,35 @@ const state = {
 
 const cyEl = document.getElementById("cy");
 const tooltip = document.getElementById("tooltip");
+const modifierKeys = { d: false };
+
+function isTypingTarget(target) {
+  return target instanceof HTMLElement && target.matches("input, select, textarea");
+}
+
+function bindKeyboard() {
+  document.addEventListener("keydown", (e) => {
+    if (isTypingTarget(e.target)) return;
+    if (e.key === "d" || e.key === "D") modifierKeys.d = true;
+  });
+  document.addEventListener("keyup", (e) => {
+    if (e.key === "d" || e.key === "D") modifierKeys.d = false;
+  });
+  window.addEventListener("blur", () => {
+    modifierKeys.d = false;
+  });
+}
+
+function filterGraphData(data) {
+  if (state.hidden.size === 0) return data;
+  const nodes = data.nodes.filter((n) => !state.hidden.has(elementData(n).id));
+  const visibleIds = new Set(nodes.map((n) => elementData(n).id));
+  const edges = data.edges.filter((e) => {
+    const d = elementData(e);
+    return visibleIds.has(d.source) && visibleIds.has(d.target);
+  });
+  return { ...data, nodes, edges };
+}
 
 const layoutOpts = {
   name: "cose",
@@ -122,9 +152,20 @@ async function loadGraph(options = {}) {
   const requestId = ++state.graphRequest;
   const scopeParam = state.scope.trim() ? `&scope=${encodeURIComponent(state.scope.trim())}` : "";
   const url = `/api/graph?depth=${state.depth}&expanded=${expandedParam()}&overlay=${state.overlay}&group=${encodeURIComponent(state.group)}${scopeParam}`;
-  const data = await api(url);
+  const data = filterGraphData(await api(url));
   if (requestId !== state.graphRequest) return;
   renderGraph(data, options);
+}
+
+function hideNode(nodeId) {
+  if (state.hidden.has(nodeId)) return;
+  capturePositions();
+  state.hidden.add(nodeId);
+  delete state.positions[nodeId];
+  if (!state.cy) return;
+  state.cy.getElementById(nodeId).remove();
+  state.graphFingerprint = "";
+  showGraph();
 }
 
 function nodeColor(data) {
@@ -262,9 +303,14 @@ function bindCyEvents() {
   });
 
   state.cy.on("tap", "node", (evt) => {
+    const nodeId = evt.target.id();
+    if (modifierKeys.d) {
+      hideNode(nodeId);
+      return;
+    }
     const oe = evt.originalEvent;
     if (!oe.metaKey && !oe.ctrlKey) return;
-    explodeNode(evt.target.id()).catch((err) => console.error("Explode failed:", err));
+    explodeNode(nodeId).catch((err) => console.error("Explode failed:", err));
   });
 }
 
@@ -434,6 +480,7 @@ function renderTable(containerId, rows, cols, nodeIdFn) {
 document.getElementById("depth").addEventListener("input", (e) => {
   state.depth = parseInt(e.target.value, 10);
   state.expanded.clear();
+  state.hidden.clear();
   state.positions = {};
   scheduleLoadGraph();
 });
@@ -446,6 +493,7 @@ document.getElementById("overlay").addEventListener("change", (e) => {
 document.getElementById("group").addEventListener("change", (e) => {
   state.group = e.target.value;
   state.expanded.clear();
+  state.hidden.clear();
   state.positions = {};
   scheduleLoadGraph();
 });
@@ -453,6 +501,7 @@ document.getElementById("group").addEventListener("change", (e) => {
 document.getElementById("scope").addEventListener("change", (e) => {
   state.scope = e.target.value;
   state.expanded.clear();
+  state.hidden.clear();
   state.positions = {};
   scheduleLoadGraph();
 });
@@ -478,6 +527,7 @@ document.querySelectorAll(".tabs button").forEach((btn) => {
 
 (async () => {
   try {
+    bindKeyboard();
     await waitReady();
     await loadScopes();
     await loadGraph();
