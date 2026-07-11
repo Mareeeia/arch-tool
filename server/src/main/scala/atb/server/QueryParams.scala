@@ -18,7 +18,7 @@ private[server] object QueryParams:
 
   def graphQuery(req: Request[cats.effect.IO]): GraphQuery =
     GraphQuery(
-      depth = req.params.get("depth").flatMap(_.toIntOption).getOrElse(2),
+      depth = depth(req),
       expanded = req.params.get("expanded").fold(Set.empty[NodeId]) { s =>
         s.split(",").filter(_.nonEmpty).map(NodeId(_)).toSet
       },
@@ -30,6 +30,9 @@ private[server] object QueryParams:
       scope = req.params.get("scope").map(_.trim).filter(_.nonEmpty),
       group = req.params.get("group").flatMap(ViewGranularity.parse).getOrElse(ViewGranularity.Package)
     )
+
+  def depth(req: Request[cats.effect.IO], default: Int = 2): Int =
+    req.params.get("depth").flatMap(_.toIntOption).getOrElse(default)
 
   def limit(req: Request[cats.effect.IO], default: Int = 50): Int =
     req.params.get("limit").flatMap(_.toIntOption).getOrElse(default)

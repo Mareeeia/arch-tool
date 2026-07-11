@@ -99,6 +99,25 @@ function scheduleLoadGraph() {
   }, 200);
 }
 
+async function loadScopes() {
+  const scopes = await api("/api/scopes");
+  const select = document.getElementById("scope");
+  const current = state.scope;
+  select.replaceChildren();
+  const all = document.createElement("option");
+  all.value = "";
+  all.textContent = "All packages";
+  select.appendChild(all);
+  scopes.forEach((scope) => {
+    const option = document.createElement("option");
+    option.value = scope;
+    option.textContent = scope;
+    select.appendChild(option);
+  });
+  select.value = scopes.includes(current) ? current : "";
+  state.scope = select.value;
+}
+
 async function loadGraph() {
   const requestId = ++state.graphRequest;
   const scopeParam = state.scope.trim() ? `&scope=${encodeURIComponent(state.scope.trim())}` : "";
@@ -165,6 +184,26 @@ function graphFingerprint(data) {
   return `${nodes}|${edges}`;
 }
 
+let explodeInFlight = false;
+
+async function explodeNode(nodeId) {
+  if (explodeInFlight) return;
+  explodeInFlight = true;
+  try {
+    const scopeParam = state.scope.trim() ? `&scope=${encodeURIComponent(state.scope.trim())}` : "";
+    const url =
+      `/api/graph/nodes/${encodeURIComponent(nodeId)}/children?depth=${state.depth}` +
+      `&expanded=${expandedParam()}&overlay=${state.overlay}` +
+      `&group=${encodeURIComponent(state.group)}${scopeParam}`;
+    const data = await api(url);
+    if (!data.nodes?.length) return;
+    state.expanded.add(nodeId);
+    await loadGraph();
+  } finally {
+    explodeInFlight = false;
+  }
+}
+
 function bindCyEvents() {
   state.cy.on("dragfree", "node", (evt) => {
     state.positions[evt.target.id()] = evt.target.position();
@@ -181,15 +220,18 @@ function bindCyEvents() {
     tooltip.textContent = `${evt.target.data("source")} → ${evt.target.data("target")}: ${w} class-level deps`;
   });
 
-  state.cy.on("dbltap", "node", (evt) => {
-    const id = evt.target.id();
-    if (state.expanded.has(id)) state.expanded.delete(id);
-    else state.expanded.add(id);
-    scheduleLoadGraph();
+  state.cy.on("tap", "node", (evt) => {
+    const oe = evt.originalEvent;
+    if (!oe.metaKey && !oe.ctrlKey) return;
+    explodeNode(evt.target.id()).catch((err) => console.error("Explode failed:", err));
   });
 }
 
 function runLayout({ randomize = false } = {}) {
+  if (!state.cy || state.cy.nodes().length === 0) {
+    cyEl.style.visibility = "visible";
+    return;
+  }
   cyEl.style.visibility = "hidden";
   state.cy.stop();
   const layout = state.cy.layout({ ...layoutOpts, randomize });
@@ -329,6 +371,7 @@ function renderTable(containerId, rows, cols, nodeIdFn) {
 
 document.getElementById("depth").addEventListener("input", (e) => {
   state.depth = parseInt(e.target.value, 10);
+  state.expanded.clear();
   scheduleLoadGraph();
 });
 
@@ -339,11 +382,13 @@ document.getElementById("overlay").addEventListener("change", (e) => {
 
 document.getElementById("group").addEventListener("change", (e) => {
   state.group = e.target.value;
+  state.expanded.clear();
   scheduleLoadGraph();
 });
 
-document.getElementById("scope").addEventListener("input", (e) => {
+document.getElementById("scope").addEventListener("change", (e) => {
   state.scope = e.target.value;
+  state.expanded.clear();
   scheduleLoadGraph();
 });
 
@@ -369,6 +414,7 @@ document.querySelectorAll(".tabs button").forEach((btn) => {
 (async () => {
   try {
     await waitReady();
+    await loadScopes();
     await loadGraph();
     await loadMetrics();
   } catch (err) {

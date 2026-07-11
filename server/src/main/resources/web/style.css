@@ -66,6 +66,9 @@ header h1 {
   border-radius: 4px;
 }
 
+.controls select { width: auto; }
+.controls #scope { min-width: 220px; max-width: 320px; }
+
 main { flex: 1; display: flex; min-height: 0; }
 
 #cy {

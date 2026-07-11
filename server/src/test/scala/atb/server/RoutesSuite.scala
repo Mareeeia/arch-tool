@@ -111,6 +111,43 @@ class RoutesSuite extends CatsEffectSuite:
       }
     }.flatten
 
+  test("GET /api/scopes returns package prefixes"):
+    IO {
+      val root   = MiniJavaFixture.create()
+      val target = AnalysisTarget(root, Vector(root.resolve("target/classes")), None)
+      AnalysisService.make(ArchUnitProvider[IO], JGitHistoryProvider[IO]).flatMap { service =>
+        for
+          _     <- service.analyze(target, None)
+          routes = Routes(service)
+          req    = Request[IO](Method.GET, uri"/api/scopes")
+          body  <- routes.orNotFound.run(req).flatMap(_.as[String])
+        yield
+          val scopes = parse(body).toOption.get.asArray.get.flatMap(_.asString)
+          assert(scopes.contains("com.service"))
+          assert(scopes.contains("com.a"))
+      }
+    }.flatten
+
+  test("GET /api/graph/nodes/{id}/children returns subnodes"):
+    IO {
+      val root   = MiniJavaFixture.create()
+      val target = AnalysisTarget(root, Vector(root.resolve("target/classes")), None)
+      AnalysisService.make(ArchUnitProvider[IO], JGitHistoryProvider[IO]).flatMap { service =>
+        for
+          _     <- service.analyze(target, None)
+          routes = Routes(service)
+          req    = Request[IO](Method.GET, uri"/api/graph/nodes/com.service/children?depth=2&group=package")
+          body  <- routes.orNotFound.run(req).flatMap(_.as[String])
+        yield
+          val json   = parse(body).toOption.get
+          val parent = json.hcursor.get[String]("parent").toOption
+          val nodes  = json.hcursor.downField("nodes").focus.get.asArray.get.flatMap(_.hcursor.get[String]("id").toOption)
+          assertEquals(parent, Some("com.service"))
+          assert(nodes.contains("com.service.api"))
+          assert(nodes.contains("com.service.impl"))
+      }
+    }.flatten
+
   test("GET /api/metrics/coupling includes fixture pair"):
     IO {
       val root   = MiniJavaFixture.create()

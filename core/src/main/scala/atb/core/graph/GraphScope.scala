@@ -20,5 +20,15 @@ object GraphScope:
     val root = normalize(prefix)
     fqcn.value == root || fqcn.value.startsWith(s"$root.")
 
+  /** Package prefixes present in the graph, for scope selection UI. */
+  def availableScopes(graph: DependencyGraph): Vector[String] =
+    graph.classes.toVector
+      .flatMap { fqcn =>
+        val parts = fqcn.segments
+        (2 until parts.length).map(depth => parts.take(depth).mkString("."))
+      }
+      .distinct
+      .sorted
+
   private def normalize(prefix: String): String =
     prefix.trim.stripPrefix(".").stripSuffix(".")

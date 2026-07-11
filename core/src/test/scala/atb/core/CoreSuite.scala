@@ -64,6 +64,26 @@ class RollupSuite extends munit.FunSuite:
     assertEquals(view.nodes.find(_.id.value == "com.a").map(_.kind), Some(NodeKind.Package))
     assertEquals(view.nodes.find(_.id.value == "com.b").map(_.kind), Some(NodeKind.Class))
 
+  test("subnodes expands package parent one level"):
+    val g = graph("com.a.x.X" -> "com.a.y.Y")
+    val parent = NodeId("com.a")
+    val sub = Rollup.subnodes(g, parent, defaultDepth = 2, ViewGranularity.Package)
+    assertEquals(sub.nodes.map(_.id.value).toSet, Set("com.a.x", "com.a.y"))
+
+  test("subnodes expands nested package under prior expansion"):
+    val g = graph("com.a.x.X" -> "com.a.x.y.Y", "com.a.x.X" -> "com.a.z.Z")
+    val root = NodeId("com.a")
+    val leaf = NodeId("com.a.x")
+    val first = Rollup.subnodes(g, root, defaultDepth = 2, ViewGranularity.Package)
+    assertEquals(first.nodes.map(_.id.value).toSet, Set("com.a.x", "com.a.z"))
+    val second = Rollup.subnodes(g, leaf, defaultDepth = 2, ViewGranularity.Package, Set(root))
+    assertEquals(second.nodes.map(_.id.value).toSet, Set("com.a.x.y"))
+
+  test("subnodes expands class parent into classes"):
+    val g = graph("com.a.X" -> "com.a.Y", "com.a.X" -> "com.b.Z")
+    val sub = Rollup.subnodes(g, NodeId("com.a"), defaultDepth = 2, ViewGranularity.Class)
+    assertEquals(sub.nodes.map(_.id.value).toSet, Set("com.a.X", "com.a.Y"))
+
 class GraphScopeSuite extends munit.FunSuite:
 
   private def graph(deps: (String, String)*): DependencyGraph =
@@ -101,6 +121,22 @@ class GraphScopeSuite extends munit.FunSuite:
     val view = Rollup.at(GraphScope(g, "org.springframework.core"), depth = 0)
     assert(view.nodes.forall(n => n.id.value.startsWith("org.springframework.core.")))
     assertEquals(view.nodes.size, 2)
+
+  test("availableScopes lists package prefixes from classes"):
+    val g = graph(
+      "org.springframework.core.A" -> "org.springframework.core.B",
+      "org.springframework.util.X" -> "org.springframework.core.A",
+      "com.other.Z" -> "org.springframework.core.A"
+    )
+    assertEquals(
+      GraphScope.availableScopes(g),
+      Vector(
+        "com.other",
+        "org.springframework",
+        "org.springframework.core",
+        "org.springframework.util"
+      )
+    )
 
 class CyclesSuite extends munit.FunSuite:
 

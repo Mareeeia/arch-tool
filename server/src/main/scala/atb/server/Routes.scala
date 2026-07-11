@@ -1,6 +1,7 @@
 package atb.server
 
 import atb.app.{AnalysisService, AnalysisStatus}
+import atb.core.view.NodeId
 import cats.effect.*
 import cats.syntax.all.*
 import io.circe.syntax.*
@@ -30,6 +31,16 @@ object Routes:
           case None       => NotFound("Analysis not ready")
           case Some(view) => Ok(JsonCodecs.cytoscapeGraph(view).asJson)
         }
+
+      case req @ GET -> Root / "api" / "graph" / "nodes" / nodeId / "children" =>
+        val q = QueryParams.graphQuery(req)
+        service.nodeChildren(NodeId(nodeId), q.depth, q.expanded, q.overlay, q.scope, q.group).flatMap {
+          case None       => NotFound("Analysis not ready")
+          case Some(view) => Ok(JsonCodecs.nodeChildren(nodeId, view).asJson)
+        }
+
+      case GET -> Root / "api" / "scopes" =>
+        service.scopes.flatMap(scopes => Ok(scopes.asJson))
 
       case req @ GET -> Root / "api" / "metrics" / "hotspots" =>
         service.hotspots.flatMap(hs => Ok(hs.take(QueryParams.limit(req)).asJson))

@@ -27,6 +27,15 @@ trait AnalysisService[F[_]]:
   def hotspots: F[Vector[Hotspot]]
   def coupling: F[Vector[CouplingPair]]
   def busFactor: F[Vector[ComponentBusFactor]]
+  def scopes: F[Vector[String]]
+  def nodeChildren(
+      nodeId: NodeId,
+      depth: Int,
+      expanded: Set[NodeId],
+      overlay: OverlayKind,
+      scope: Option[String],
+      group: ViewGranularity
+  ): F[Option[GraphView]]
   def status: F[AnalysisStatus]
 
 enum AnalysisStatus:
@@ -89,6 +98,29 @@ private final class LiveAnalysisService[F[_]: Async](
 
   def busFactor: F[Vector[ComponentBusFactor]] =
     cache.get.map(_.fold(Vector.empty[ComponentBusFactor])(_.result.busFactor))
+
+  def scopes: F[Vector[String]] =
+    cache.get.map(_.fold(Vector.empty[String])(e => GraphScope.availableScopes(e.result.graph)))
+
+  def nodeChildren(
+      nodeId: NodeId,
+      depth: Int,
+      expanded: Set[NodeId],
+      overlay: OverlayKind,
+      scope: Option[String],
+      group: ViewGranularity
+  ): F[Option[GraphView]] =
+    cache.get.map(_.map { entry =>
+      val graph = scope match
+        case Some(prefix) => GraphScope(entry.result.graph, prefix)
+        case None         => entry.result.graph
+      val children = Rollup.subnodes(graph, nodeId, depth, group, expanded)
+      Overlay.apply(
+        children,
+        MetricsBundle(entry.result.hotspots, entry.result.busFactor, graph.meta),
+        overlay
+      )
+    })
 
   def status: F[AnalysisStatus] =
     cache.get.map:

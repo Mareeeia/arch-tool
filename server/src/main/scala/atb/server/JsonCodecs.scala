@@ -11,6 +11,7 @@ import io.circe.syntax.*
 final case class CyNode(data: Json)
 final case class CyEdge(data: Json)
 final case class CytoscapeGraph(nodes: Vector[CyNode], edges: Vector[CyEdge], cycles: Vector[Vector[String]])
+final case class NodeChildrenResponse(parent: String, nodes: Vector[CyNode], edges: Vector[CyEdge])
 final case class StatusResponse(state: String, error: Option[String])
 
 object JsonCodecs:
@@ -25,6 +26,7 @@ object JsonCodecs:
       "cycles" -> g.cycles.asJson
     )
   }
+  given Encoder[NodeChildrenResponse] = deriveEncoder
   given Encoder[Hotspot] = deriveEncoder
   given Encoder[CouplingPair] = deriveEncoder
   given Encoder[ComponentBusFactor] = deriveEncoder
@@ -62,3 +64,7 @@ object JsonCodecs:
       )
     }
     CytoscapeGraph(nodes, edges, view.cycles.map(_.map(_.value)))
+
+  def nodeChildren(parent: String, view: GraphView): NodeChildrenResponse =
+    val graph = cytoscapeGraph(view)
+    NodeChildrenResponse(parent, graph.nodes, graph.edges)
