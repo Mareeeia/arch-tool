@@ -89,21 +89,7 @@ const cyStyles = [
     },
   },
   {
-    selector: "edge[kind = 'coupling']",
-    style: {
-      "curve-style": "bezier",
-      "line-style": "dashed",
-      "line-dash-pattern": [6, 4],
-      "line-color": "#9333ea",
-      width: (ele) => 1 + (ele.data("confidence") ?? 0) * 3,
-      opacity: 0.5,
-      "target-arrow-shape": "none",
-      "z-index-compare": "manual",
-      "z-index": 0,
-    },
-  },
-  {
-    selector: "edge",
+    selector: "edge[^kind]",
     style: {
       width: (ele) => Math.max(1, Math.log(ele.data("weight") + 1) * 1.2),
       "line-color": (ele) => (ele.data("cyclic") ? "#dc2626" : "#374151"),
@@ -114,6 +100,22 @@ const cyStyles = [
       opacity: 0.9,
       "z-index-compare": "manual",
       "z-index": 10,
+    },
+  },
+  {
+    selector: "edge[kind = 'coupling']",
+    style: {
+      width: (ele) => 0.75 + (ele.data("confidence") ?? 0) * 0.75,
+      "line-color": "#9333ea",
+      "target-arrow-color": "#9333ea",
+      "source-arrow-color": "#9333ea",
+      "target-arrow-shape": "triangle",
+      "source-arrow-shape": "triangle",
+      "arrow-scale": 0.8,
+      "curve-style": "bezier",
+      opacity: (ele) => couplingOpacity(ele.data("confidence")),
+      "z-index-compare": "manual",
+      "z-index": 5,
     },
   },
   {
@@ -220,14 +222,13 @@ function elementData(element) {
   return element.data ?? element;
 }
 
+function couplingOpacity(confidence) {
+  const t = Math.max(0, Math.min(1, confidence ?? 0));
+  return 0.25 + t * 0.65;
+}
+
 function couplingElements(edges) {
-  return (edges ?? []).flatMap((e) => {
-    const d = elementData(e);
-    return [
-      { group: "edges", data: { ...d, id: `${d.id}:fwd`, source: d.source, target: d.target } },
-      { group: "edges", data: { ...d, id: `${d.id}:rev`, source: d.target, target: d.source } },
-    ];
-  });
+  return (edges ?? []).map((e) => ({ group: "edges", data: elementData(e) }));
 }
 
 function buildElements(data) {
