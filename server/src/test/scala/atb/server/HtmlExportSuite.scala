@@ -10,6 +10,7 @@ class HtmlExportSuite extends FunSuite:
     val graph = CytoscapeGraph(
       nodes = Vector(CyNode(Json.obj("id" -> Json.fromString("com.a"), "label" -> Json.fromString("com.a")))),
       edges = Vector.empty,
+      couplingEdges = Vector.empty,
       cycles = Vector.empty
     )
     val html = HtmlExport.render(graph)
@@ -22,6 +23,7 @@ class HtmlExportSuite extends FunSuite:
     val graph = CytoscapeGraph(
       nodes = Vector(CyNode(Json.obj("id" -> Json.fromString("z"), "label" -> Json.fromString("z")))),
       edges = Vector.empty,
+      couplingEdges = Vector.empty,
       cycles = Vector.empty
     )
     val once = HtmlExport.sortedJson(graph)

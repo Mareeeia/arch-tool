@@ -82,11 +82,14 @@ private final class LiveAnalysisService[F[_]: Async](
       val graph = scope match
         case Some(prefix) => GraphScope(entry.result.graph, prefix)
         case None         => entry.result.graph
-      val rolled = Stability.enrich(Rollup.view(graph, depth, expanded, group))
-      Overlay.apply(
-        rolled,
-        MetricsBundle(entry.result.hotspots, entry.result.busFactor, graph.meta),
-        overlay
+      finishView(
+        graph,
+        depth,
+        expanded,
+        group,
+        overlay,
+        entry,
+        Stability.enrich(Rollup.view(graph, depth, expanded, group))
       )
     })
 
@@ -114,11 +117,14 @@ private final class LiveAnalysisService[F[_]: Async](
       val graph = scope match
         case Some(prefix) => GraphScope(entry.result.graph, prefix)
         case None         => entry.result.graph
-      val children = Stability.enrich(Rollup.subnodes(graph, nodeId, depth, group, expanded))
-      Overlay.apply(
-        children,
-        MetricsBundle(entry.result.hotspots, entry.result.busFactor, graph.meta),
-        overlay
+      finishView(
+        graph,
+        depth,
+        expanded,
+        group,
+        overlay,
+        entry,
+        Stability.enrich(Rollup.subnodes(graph, nodeId, depth, group, expanded))
       )
     })
 
@@ -126,6 +132,25 @@ private final class LiveAnalysisService[F[_]: Async](
     cache.get.map:
       case None    => AnalysisStatus.Analyzing
       case Some(e) => AnalysisStatus.Ready(e.result)
+
+  private def finishView(
+      graph: DependencyGraph,
+      depth: Int,
+      expanded: Set[NodeId],
+      group: ViewGranularity,
+      overlay: OverlayKind,
+      entry: CacheEntry,
+      rolled: GraphView
+  ): GraphView =
+    val withMetrics = Overlay.apply(
+      rolled,
+      MetricsBundle(entry.result.hotspots, entry.result.busFactor, graph.meta),
+      overlay
+    )
+    overlay match
+      case OverlayKind.Coupling =>
+        CouplingOverlay.enrich(withMetrics, entry.result.coupling, graph, depth, expanded, group)
+      case _ => withMetrics
 
   private def runAnalysis(
       target: AnalysisTarget,

@@ -42,7 +42,11 @@ function filterGraphData(data) {
     const d = elementData(e);
     return visibleIds.has(d.source) && visibleIds.has(d.target);
   });
-  return { ...data, nodes, edges };
+  const couplingEdges = (data.couplingEdges ?? []).filter((e) => {
+    const d = elementData(e);
+    return visibleIds.has(d.source) && visibleIds.has(d.target);
+  });
+  return { ...data, nodes, edges, couplingEdges };
 }
 
 const layoutOpts = {
@@ -85,6 +89,20 @@ const cyStyles = [
     },
   },
   {
+    selector: "edge[kind = 'coupling']",
+    style: {
+      "curve-style": "bezier",
+      "line-style": "dashed",
+      "line-dash-pattern": [6, 4],
+      "line-color": "#9333ea",
+      width: (ele) => 1 + (ele.data("confidence") ?? 0) * 3,
+      opacity: 0.5,
+      "target-arrow-shape": "none",
+      "z-index-compare": "manual",
+      "z-index": 0,
+    },
+  },
+  {
     selector: "edge",
     style: {
       width: (ele) => Math.max(1, Math.log(ele.data("weight") + 1) * 1.2),
@@ -94,6 +112,8 @@ const cyStyles = [
       "arrow-scale": 0.8,
       "curve-style": "bezier",
       opacity: 0.9,
+      "z-index-compare": "manual",
+      "z-index": 10,
     },
   },
   {
@@ -200,6 +220,16 @@ function elementData(element) {
   return element.data ?? element;
 }
 
+function couplingElements(edges) {
+  return (edges ?? []).flatMap((e) => {
+    const d = elementData(e);
+    return [
+      { group: "edges", data: { ...d, id: `${d.id}:fwd`, source: d.source, target: d.target } },
+      { group: "edges", data: { ...d, id: `${d.id}:rev`, source: d.target, target: d.source } },
+    ];
+  });
+}
+
 function buildElements(data) {
   return [
     ...data.nodes.map((n) => {
@@ -210,6 +240,7 @@ function buildElements(data) {
       return element;
     }),
     ...data.edges.map((e) => ({ group: "edges", data: elementData(e) })),
+    ...couplingElements(data.couplingEdges),
   ];
 }
 
@@ -256,7 +287,14 @@ function graphFingerprint(data) {
     })
     .sort()
     .join("\0");
-  return `${nodes}|${edges}`;
+  const coupling = (data.couplingEdges ?? [])
+    .map((e) => {
+      const d = elementData(e);
+      return `${d.source}\t${d.target}\t${d.confidence}`;
+    })
+    .sort()
+    .join("\0");
+  return `${nodes}|${edges}|${coupling}`;
 }
 
 let explodeInFlight = false;
@@ -295,11 +333,18 @@ function bindCyEvents() {
   state.cy.on("mouseout", "node", hideTooltip);
 
   state.cy.on("tap", "edge", (evt) => {
-    const w = evt.target.data("weight");
+    const d = evt.target.data();
     tooltip.style.display = "block";
     tooltip.style.left = "50%";
     tooltip.style.top = "60px";
-    tooltip.textContent = `${evt.target.data("source")} → ${evt.target.data("target")}: ${w} class-level deps`;
+    if (d.kind === "coupling") {
+      tooltip.textContent =
+        `Temporal coupling ${d.source} ↔ ${d.target}: ${(d.confidence * 100).toFixed(0)}%` +
+        ` (${d.coChanges} co-changes, ${d.filePairs} file pairs)`;
+      return;
+    }
+    const w = d.weight;
+    tooltip.textContent = `${d.source} → ${d.target}: ${w} class-level deps`;
   });
 
   state.cy.on("tap", "node", (evt) => {

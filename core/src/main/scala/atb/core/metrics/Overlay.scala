@@ -6,7 +6,7 @@ import atb.core.view.*
 
 /** Which metric overlay to apply when rendering the graph. */
 enum OverlayKind:
-  case None, Hotspot, BusFactor
+  case None, Hotspot, BusFactor, Coupling
 
 /** Precomputed metrics used by overlay application. */
 final case class MetricsBundle(
@@ -24,6 +24,7 @@ object Overlay:
       case OverlayKind.None      => view
       case OverlayKind.Hotspot   => applyHotspots(view, metrics)
       case OverlayKind.BusFactor => applyBusFactor(view, metrics)
+      case OverlayKind.Coupling  => view
 
   private def applyHotspots(view: GraphView, metrics: MetricsBundle): GraphView =
     val scoreByPkg = metrics.hotspots.flatMap { h =>

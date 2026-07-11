@@ -2,7 +2,7 @@ package atb.core
 
 import atb.core.graph.{Cycles, GraphScope, PathMapping, Rollup}
 import atb.core.history.{ChangeSet, FileChange}
-import atb.core.metrics.{BusFactor, Coupling, CouplingConfig, Hotspots, Stability}
+import atb.core.metrics.{BusFactor, Coupling, CouplingConfig, CouplingOverlay, CouplingPair, Hotspots, Stability}
 import atb.core.model.*
 import atb.core.view.*
 import munit.ScalaCheckSuite
@@ -164,6 +164,38 @@ class StabilitySuite extends munit.FunSuite:
     assertEquals(byId("com.a"), Some(1.0))
     assertEquals(byId("com.c"), Some(1.0))
 
+class CouplingOverlaySuite extends munit.FunSuite:
+
+  private def graph(deps: (String, String)*): DependencyGraph =
+    val fqcnDeps = deps.flatMap { case (f, t) =>
+      for
+        from <- Fqcn.parse(f)
+        to   <- Fqcn.parse(t)
+      yield ClassDep(from, to, DepKind.Reference)
+    }.toVector
+    val classes = deps.flatMap { case (f, t) => List(Fqcn.parse(f), Fqcn.parse(t)).flatten }.toSet
+    DependencyGraph(classes, fqcnDeps, Map.empty)
+
+  test("coupling overlay links distinct rolled-up components"):
+    val g = graph("com.a.X" -> "com.b.Y")
+    val view = Rollup.at(g, depth = 2)
+    val pairs = Vector(
+      CouplingPair("src/main/java/com/a/X.java", "src/main/java/com/b/Y.java", 8, 8, 0.8)
+    )
+    val enriched = CouplingOverlay.enrich(view, pairs, g, depth = 2, expanded = Set.empty, ViewGranularity.Package)
+    assertEquals(enriched.couplingEdges.size, 1)
+    assertEquals(enriched.couplingEdges.head.from, NodeId("com.a"))
+    assertEquals(enriched.couplingEdges.head.to, NodeId("com.b"))
+
+  test("coupling overlay ignores files mapped to the same component"):
+    val g = graph("com.a.X" -> "com.a.Y")
+    val view = Rollup.at(g, depth = 2)
+    val pairs = Vector(
+      CouplingPair("src/main/java/com/a/X.java", "src/main/java/com/a/Y.java", 8, 8, 0.8)
+    )
+    val enriched = CouplingOverlay.enrich(view, pairs, g, depth = 2, expanded = Set.empty, ViewGranularity.Package)
+    assertEquals(enriched.couplingEdges, Vector.empty)
+
 class CyclesSuite extends munit.FunSuite:
 
   test("tarjan finds planted cycle"):
@@ -199,6 +231,16 @@ class HotspotsSuite extends ScalaCheckSuite:
     }
 
 class CouplingSuite extends munit.FunSuite:
+
+  private def graph(deps: (String, String)*): DependencyGraph =
+    val fqcnDeps = deps.flatMap { case (f, t) =>
+      for
+        from <- Fqcn.parse(f)
+        to   <- Fqcn.parse(t)
+      yield ClassDep(from, to, DepKind.Reference)
+    }.toVector
+    val classes = deps.flatMap { case (f, t) => List(Fqcn.parse(f), Fqcn.parse(t)).flatten }.toSet
+    DependencyGraph(classes, fqcnDeps, Map.empty)
 
   test("coupling is symmetric"):
     val fileChanges = Vector(FileChange("f1.java", 1, 0), FileChange("f2.java", 1, 0))

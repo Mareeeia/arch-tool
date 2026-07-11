@@ -25,6 +25,7 @@ private[server] object QueryParams:
       overlay = req.params.get("overlay") match
         case Some("hotspot")   => OverlayKind.Hotspot
         case Some("busfactor") => OverlayKind.BusFactor
+        case Some("coupling")  => OverlayKind.Coupling
         case _                 => OverlayKind.None
       ,
       scope = req.params.get("scope").map(_.trim).filter(_.nonEmpty),

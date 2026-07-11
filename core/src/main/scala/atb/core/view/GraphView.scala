@@ -38,5 +38,6 @@ final case class ViewEdge(from: NodeId, to: NodeId, weight: Int, cyclic: Boolean
 final case class GraphView(
     nodes: Vector[ViewNode],
     edges: Vector[ViewEdge],
-    cycles: Vector[Vector[NodeId]]
+    cycles: Vector[Vector[NodeId]],
+    couplingEdges: Vector[CouplingEdge] = Vector.empty
 )

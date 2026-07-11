@@ -111,3 +111,26 @@ object Rollup:
         else return id
       val deepestPkg = NodeId(parts.take(maxPkgDepth).mkString("."))
       if expanded.contains(deepestPkg) && classAtLeaf then NodeId(fqcn.value) else deepestPkg
+
+  /** Map a source file path to the rolled-up node id for the current view settings. */
+  def nodeForSourcePath(
+      path: String,
+      graph: DependencyGraph,
+      defaultDepth: Int,
+      expanded: Set[NodeId],
+      granularity: ViewGranularity
+  ): Option[NodeId] =
+    PathMapping.toFqcn(path)
+      .filter(graph.classes.contains)
+      .map(nodeForFqcn(_, defaultDepth, expanded, granularity))
+
+  /** Map a class to the rolled-up node id for the current view settings. */
+  def nodeForFqcn(
+      fqcn: Fqcn,
+      defaultDepth: Int,
+      expanded: Set[NodeId],
+      granularity: ViewGranularity
+  ): NodeId =
+    granularity match
+      case ViewGranularity.Package => packageNodeIdFor(fqcn, defaultDepth, expanded)
+      case ViewGranularity.Class   => nodeIdFor(fqcn, defaultDepth, expanded)

@@ -10,7 +10,12 @@ import io.circe.syntax.*
 /** Cytoscape-friendly graph JSON shape. */
 final case class CyNode(data: Json)
 final case class CyEdge(data: Json)
-final case class CytoscapeGraph(nodes: Vector[CyNode], edges: Vector[CyEdge], cycles: Vector[Vector[String]])
+final case class CytoscapeGraph(
+    nodes: Vector[CyNode],
+    edges: Vector[CyEdge],
+    couplingEdges: Vector[CyEdge],
+    cycles: Vector[Vector[String]]
+)
 final case class NodeChildrenResponse(parent: String, nodes: Vector[CyNode], edges: Vector[CyEdge])
 final case class StatusResponse(state: String, error: Option[String])
 
@@ -21,9 +26,10 @@ object JsonCodecs:
   given Encoder[CyEdge] = Encoder.instance(e => e.data)
   given Encoder[CytoscapeGraph] = Encoder.instance { g =>
     Json.obj(
-      "nodes"  -> Json.arr(g.nodes.map(_.asJson)*),
-      "edges"  -> Json.arr(g.edges.map(_.asJson)*),
-      "cycles" -> g.cycles.asJson
+      "nodes"         -> Json.arr(g.nodes.map(_.asJson)*),
+      "edges"         -> Json.arr(g.edges.map(_.asJson)*),
+      "couplingEdges" -> Json.arr(g.couplingEdges.map(_.asJson)*),
+      "cycles"        -> g.cycles.asJson
     )
   }
   given Encoder[NodeChildrenResponse] = deriveEncoder
@@ -64,7 +70,22 @@ object JsonCodecs:
         )
       )
     }
-    CytoscapeGraph(nodes, edges, view.cycles.map(_.map(_.value)))
+    CytoscapeGraph(nodes, edges, couplingEdges(view), view.cycles.map(_.map(_.value)))
+
+  private def couplingEdges(view: GraphView): Vector[CyEdge] =
+    view.couplingEdges.map { e =>
+      CyEdge(
+        Json.obj(
+          "id"         -> s"coupling:${e.from.value}|${e.to.value}".asJson,
+          "source"     -> e.from.value.asJson,
+          "target"     -> e.to.value.asJson,
+          "kind"       -> "coupling".asJson,
+          "confidence" -> e.confidence.asJson,
+          "coChanges"  -> e.coChanges.asJson,
+          "filePairs"  -> e.filePairs.asJson
+        )
+      )
+    }
 
   def nodeChildren(parent: String, view: GraphView): NodeChildrenResponse =
     val graph = cytoscapeGraph(view)

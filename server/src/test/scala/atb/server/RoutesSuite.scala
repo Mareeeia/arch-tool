@@ -118,6 +118,29 @@ class RoutesSuite extends CatsEffectSuite:
       }
     }.flatten
 
+  test("GET /api/graph overlay=coupling returns ghost coupling edges at class depth"):
+    IO {
+      val root   = MiniJavaFixture.create()
+      val target = AnalysisTarget(root, Vector(root.resolve("target/classes")), None)
+      AnalysisService.make(ArchUnitProvider[IO], JGitHistoryProvider[IO]).flatMap { service =>
+        for
+          _    <- service.analyze(target, None)
+          routes = Routes(service)
+          req    = Request[IO](Method.GET, uri"/api/graph?depth=0&overlay=coupling&group=class")
+          body  <- routes.orNotFound.run(req).flatMap(_.as[String])
+        yield
+          val json = parse(body).toOption.get
+          val edges = json.hcursor.downField("couplingEdges").focus.get.asArray.get
+          assert(edges.nonEmpty)
+          assert(edges.exists { edge =>
+            val source = edge.hcursor.get[String]("source").toOption
+            val target = edge.hcursor.get[String]("target").toOption
+            val kind   = edge.hcursor.get[String]("kind").toOption
+            Set(source, target) == Set(Some("com.util.X"), Some("com.util.Y")) && kind.contains("coupling")
+          })
+      }
+    }.flatten
+
   test("GET /api/scopes returns package prefixes"):
     IO {
       val root   = MiniJavaFixture.create()
