@@ -9,6 +9,7 @@ const state = {
   cy: null,
   positions: {},
   graphRequest: 0,
+  graphFingerprint: "",
 };
 
 const cyEl = document.getElementById("cy");
@@ -16,10 +17,12 @@ const tooltip = document.getElementById("tooltip");
 
 const layoutOpts = {
   name: "cose",
-  animate: true,
+  animate: false,
   padding: 40,
   nodeRepulsion: 8000,
   idealEdgeLength: 100,
+  numIter: 500,
+  refresh: 30,
 };
 
 const cyStyles = [
@@ -150,6 +153,18 @@ function buildElements(data) {
   ];
 }
 
+function graphFingerprint(data) {
+  const nodes = data.nodes.map((n) => elementData(n).id).sort().join("\0");
+  const edges = data.edges
+    .map((e) => {
+      const d = elementData(e);
+      return `${d.source}\t${d.target}`;
+    })
+    .sort()
+    .join("\0");
+  return `${nodes}|${edges}`;
+}
+
 function bindCyEvents() {
   state.cy.on("dragfree", "node", (evt) => {
     state.positions[evt.target.id()] = evt.target.position();
@@ -174,15 +189,46 @@ function bindCyEvents() {
   });
 }
 
-function runLayout(animate = true) {
+function runLayout({ randomize = false } = {}) {
+  cyEl.style.visibility = "hidden";
   state.cy.stop();
-  state.cy
-    .layout({ ...layoutOpts, animate })
-    .run();
+  const layout = state.cy.layout({ ...layoutOpts, randomize });
+  layout.one("layoutstop", () => {
+    requestAnimationFrame(() => {
+      cyEl.style.visibility = "visible";
+    });
+  });
+  layout.run();
+}
+
+function updateGraphData(data) {
+  state.cy.batch(() => {
+    data.nodes.forEach((n) => {
+      const d = elementData(n);
+      const node = state.cy.getElementById(d.id);
+      if (node.nonempty()) node.data(d);
+    });
+    data.edges.forEach((e) => {
+      const d = elementData(e);
+      const edge = state.cy.getElementById(d.id);
+      if (edge.nonempty()) edge.data(d);
+    });
+  });
 }
 
 function renderGraph(data) {
+  const fingerprint = graphFingerprint(data);
+  const structureChanged = fingerprint !== state.graphFingerprint;
+  state.graphFingerprint = fingerprint;
+
+  if (state.cy && !structureChanged) {
+    updateGraphData(data);
+    return;
+  }
+
   const elements = buildElements(data);
+  const positionedCount = data.nodes.filter((n) => state.positions[elementData(n).id]).length;
+  const randomize = positionedCount < data.nodes.length * 0.5;
 
   if (!state.cy) {
     state.cy = cytoscape({
@@ -193,7 +239,7 @@ function renderGraph(data) {
       style: cyStyles,
     });
     bindCyEvents();
-    runLayout(true);
+    runLayout({ randomize: true });
     return;
   }
 
@@ -202,7 +248,7 @@ function renderGraph(data) {
     state.cy.elements().remove();
     state.cy.add(elements);
   });
-  runLayout(true);
+  runLayout({ randomize });
 }
 
 function showTooltip(evt, d) {
