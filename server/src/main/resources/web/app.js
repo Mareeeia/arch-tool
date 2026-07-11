@@ -118,13 +118,13 @@ async function loadScopes() {
   state.scope = select.value;
 }
 
-async function loadGraph() {
+async function loadGraph(options = {}) {
   const requestId = ++state.graphRequest;
   const scopeParam = state.scope.trim() ? `&scope=${encodeURIComponent(state.scope.trim())}` : "";
   const url = `/api/graph?depth=${state.depth}&expanded=${expandedParam()}&overlay=${state.overlay}&group=${encodeURIComponent(state.group)}${scopeParam}`;
   const data = await api(url);
   if (requestId !== state.graphRequest) return;
-  renderGraph(data);
+  renderGraph(data, options);
 }
 
 function nodeColor(data) {
@@ -172,6 +172,40 @@ function buildElements(data) {
   ];
 }
 
+function capturePositions() {
+  if (!state.cy) return;
+  state.cy.nodes().forEach((n) => {
+    state.positions[n.id()] = { ...n.position() };
+  });
+}
+
+function placeNewNodes(nodeIds, anchorPos) {
+  if (!anchorPos) return;
+  const radius = 60 + nodeIds.length * 8;
+  nodeIds.forEach((id, i) => {
+    if (state.positions[id]) return;
+    const angle = (2 * Math.PI * i) / Math.max(nodeIds.length, 1);
+    state.positions[id] = {
+      x: anchorPos.x + radius * Math.cos(angle),
+      y: anchorPos.y + radius * Math.sin(angle),
+    };
+  });
+}
+
+function applySavedPositions() {
+  if (!state.cy) return;
+  state.cy.nodes().forEach((n) => {
+    const pos = state.positions[n.id()];
+    if (pos) n.position(pos);
+  });
+}
+
+function showGraph() {
+  requestAnimationFrame(() => {
+    cyEl.style.visibility = "visible";
+  });
+}
+
 function graphFingerprint(data) {
   const nodes = data.nodes.map((n) => elementData(n).id).sort().join("\0");
   const edges = data.edges
@@ -190,6 +224,10 @@ async function explodeNode(nodeId) {
   if (explodeInFlight) return;
   explodeInFlight = true;
   try {
+    capturePositions();
+    const parent = state.cy?.getElementById(nodeId);
+    const parentPos = state.positions[nodeId] ?? (parent?.nonempty() ? { ...parent.position() } : null);
+
     const scopeParam = state.scope.trim() ? `&scope=${encodeURIComponent(state.scope.trim())}` : "";
     const url =
       `/api/graph/nodes/${encodeURIComponent(nodeId)}/children?depth=${state.depth}` +
@@ -197,8 +235,11 @@ async function explodeNode(nodeId) {
       `&group=${encodeURIComponent(state.group)}${scopeParam}`;
     const data = await api(url);
     if (!data.nodes?.length) return;
+
+    const childIds = data.nodes.map((n) => elementData(n).id);
     state.expanded.add(nodeId);
-    await loadGraph();
+    delete state.positions[nodeId];
+    await loadGraph({ relayout: "none", anchorPos: parentPos, newNodeIds: childIds });
   } finally {
     explodeInFlight = false;
   }
@@ -227,18 +268,17 @@ function bindCyEvents() {
   });
 }
 
-function runLayout({ randomize = false } = {}) {
+function runLayout({ randomize = false, capture = true } = {}) {
   if (!state.cy || state.cy.nodes().length === 0) {
-    cyEl.style.visibility = "visible";
+    showGraph();
     return;
   }
   cyEl.style.visibility = "hidden";
   state.cy.stop();
   const layout = state.cy.layout({ ...layoutOpts, randomize });
   layout.one("layoutstop", () => {
-    requestAnimationFrame(() => {
-      cyEl.style.visibility = "visible";
-    });
+    if (capture) capturePositions();
+    showGraph();
   });
   layout.run();
 }
@@ -258,7 +298,7 @@ function updateGraphData(data) {
   });
 }
 
-function renderGraph(data) {
+function renderGraph(data, { relayout = "auto", anchorPos = null, newNodeIds = [] } = {}) {
   const fingerprint = graphFingerprint(data);
   const structureChanged = fingerprint !== state.graphFingerprint;
   state.graphFingerprint = fingerprint;
@@ -268,9 +308,18 @@ function renderGraph(data) {
     return;
   }
 
+  if (relayout === "none") {
+    placeNewNodes(newNodeIds, anchorPos);
+  }
+
+  const nodeIds = new Set(data.nodes.map((n) => elementData(n).id));
+  Object.keys(state.positions).forEach((id) => {
+    if (!nodeIds.has(id)) delete state.positions[id];
+  });
+
   const elements = buildElements(data);
   const positionedCount = data.nodes.filter((n) => state.positions[elementData(n).id]).length;
-  const randomize = positionedCount < data.nodes.length * 0.5;
+  const randomize = relayout === "full" || (relayout === "auto" && positionedCount < data.nodes.length * 0.5);
 
   if (!state.cy) {
     state.cy = cytoscape({
@@ -281,15 +330,28 @@ function renderGraph(data) {
       style: cyStyles,
     });
     bindCyEvents();
-    runLayout({ randomize: true });
+    if (relayout === "none") {
+      applySavedPositions();
+      showGraph();
+    } else {
+      runLayout({ randomize: true });
+    }
     return;
   }
 
   state.cy.stop();
+  cyEl.style.visibility = "hidden";
   state.cy.batch(() => {
     state.cy.elements().remove();
     state.cy.add(elements);
   });
+
+  if (relayout === "none") {
+    applySavedPositions();
+    showGraph();
+    return;
+  }
+
   runLayout({ randomize });
 }
 
@@ -372,6 +434,7 @@ function renderTable(containerId, rows, cols, nodeIdFn) {
 document.getElementById("depth").addEventListener("input", (e) => {
   state.depth = parseInt(e.target.value, 10);
   state.expanded.clear();
+  state.positions = {};
   scheduleLoadGraph();
 });
 
@@ -383,12 +446,14 @@ document.getElementById("overlay").addEventListener("change", (e) => {
 document.getElementById("group").addEventListener("change", (e) => {
   state.group = e.target.value;
   state.expanded.clear();
+  state.positions = {};
   scheduleLoadGraph();
 });
 
 document.getElementById("scope").addEventListener("change", (e) => {
   state.scope = e.target.value;
   state.expanded.clear();
+  state.positions = {};
   scheduleLoadGraph();
 });
 
