@@ -11,7 +11,11 @@
   },
   "metals.inlayHints.enabled": "true",
   "metals.enableSemanticHighlighting": true,
-  "metals.showInferredType": "true",
-  "metals.showImplicitArguments": "false",
-  "metals.showImplicitConversions": "false"
+  "metals.showImplicitConversions": "false",
+  "files.watcherExclude": {
+    "**/target/**": true
+  },
+  "metals.inlayHints.inferredTypes.enable": true,
+  "metals.inlayHints.typeParameters.enable": true,
+  "metals.inlayHints.implicitArguments.enable": true
 }
